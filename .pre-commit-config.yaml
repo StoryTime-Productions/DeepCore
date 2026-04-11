@@ -1,0 +1,22 @@
+repos:
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v3.30.0
+    hooks:
+      - id: commitizen
+        stages: [commit-msg]
+
+  - repo: local
+    hooks:
+      - id: gradle-format
+        name: Gradle Format (Spotless)
+        entry: pwsh -NoProfile -Command "./gradlew -q spotlessApply"
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: gradle-typecheck-and-lint
+        name: Gradle Typecheck and Lint
+        entry: pwsh -NoProfile -Command "./gradlew -q compileJava compileTestJava checkstyleMain checkstyleTest spotlessCheck"
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]

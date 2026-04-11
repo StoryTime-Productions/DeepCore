@@ -1,0 +1,40 @@
+<?xml version="1.0"?>
+<!DOCTYPE module PUBLIC
+    "-//Checkstyle//DTD Checkstyle Configuration 1.3//EN"
+    "https://checkstyle.org/dtds/configuration_1_3.dtd">
+<module name="Checker">
+    <property name="charset" value="UTF-8"/>
+
+    <module name="FileTabCharacter"/>
+    <module name="JavadocPackage">
+        <property name="allowLegacy" value="false"/>
+    </module>
+    <module name="TreeWalker">
+        <module name="AvoidStarImport"/>
+        <module name="UnusedImports"/>
+        <module name="RedundantImport"/>
+        <module name="NeedBraces"/>
+        <module name="FinalClass"/>
+        <module name="SummaryJavadoc"/>
+        <module name="JavadocStyle"/>
+        <module name="AtclauseOrder"/>
+        <module name="NonEmptyAtclauseDescription"/>
+        <module name="MissingJavadocType">
+            <property name="scope" value="public"/>
+        </module>
+        <module name="JavadocMethod">
+            <property name="accessModifiers" value="public"/>
+            <property name="tokens" value="METHOD_DEF,CTOR_DEF"/>
+            <property name="allowMissingParamTags" value="false"/>
+            <property name="allowMissingReturnTag" value="false"/>
+            <property name="validateThrows" value="true"/>
+            <property name="allowedAnnotations" value="Override,EventHandler,Test,BeforeEach,AfterEach,BeforeAll,AfterAll"/>
+        </module>
+        <module name="MissingJavadocMethod">
+            <property name="scope" value="public"/>
+            <property name="tokens" value="METHOD_DEF,CTOR_DEF"/>
+            <property name="allowedAnnotations" value="Override,EventHandler,Test,BeforeEach,AfterEach,BeforeAll,AfterAll"/>
+            <property name="ignoreMethodNamesRegex" value="^(on[A-Z].*|get[A-Z].*|is[A-Z].*|set[A-Z].*|key|displayName|fromKey|toString)$"/>
+        </module>
+    </module>
+</module>

@@ -1,0 +1,70 @@
+challenge:
+  enabled: false
+  mode: keep_inventory_non_hardcore
+  lobby_spawn_in_limbo_by_default: true
+  countdown_requires_all_ready: true
+  remove_ready_book_on_countdown_start: true
+  preview_hologram_enabled: true
+  preview_hologram_layers: 1
+  preview_hologram_depth_multiplier: 2.0
+  preview_hologram_solid_fill: false
+  preview_hologram_base_y_offset: 1
+  preview_hologram_anchor:
+    enabled: false
+    x: 0.5
+    y: 65.0
+    z: 0.5
+    worlds:
+      deepcore_limbo:
+        enabled: false
+        x: 0.5
+        y: 65.0
+        z: 0.5
+      deepcore_lobby_overworld:
+        enabled: false
+        x: 0.5
+        y: 65.0
+        z: 0.5
+      deepcore_lobby_nether:
+        enabled: false
+        x: 0.5
+        y: 65.0
+        z: 0.5
+  preview_hologram_block_scale: 0.05
+  preview_hologram_block_overlap: 0.02
+  preview_hologram_build_batch_size: 300
+  preview_hologram_spin_enabled: true
+  preview_hologram_spin_degrees_per_second: 8.0
+  preview_hologram_spin_update_ticks: 4
+  preview_hologram_active_radius: 48.0
+  degrading:
+    interval-seconds: 120
+    min-slots: 5
+  components:
+    keep_inventory: true
+    hardcore: false
+    health_refill: true
+    shared_inventory: false
+    shared_health: false
+    initial_half_heart: false
+    degrading_inventory: false
+
+prep:
+  countdown-seconds: 10
+
+reset:
+  limbo-world-name: deepcore_limbo
+  lobby-overworld-world-name: deepcore_lobby_overworld
+  lobby-nether-world-name: deepcore_lobby_nether
+  disco-world-chance: 0.002
+
+logging:
+  prefix: "&8[&bDeepCore&8]&r "
+  console-min-level: INFO
+  player-chat-enabled: true
+  player-default-op-level: DEBUG
+  player-default-non-op-level: INFO
+  # Set per-player override by UUID, e.g.:
+  # player-levels:
+  #   "b0f6f1f4-0000-4000-9000-abcdef123456": WARN
+  player-levels: {}

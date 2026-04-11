@@ -1,0 +1,145 @@
+plugins {
+    id 'java'
+    id 'checkstyle'
+    id 'jacoco'
+    id 'com.diffplug.spotless' version '6.25.0'
+}
+
+group = 'dev.deepcore'
+version = '0.1.0-SNAPSHOT'
+
+def minCoverage = 0.80
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        name = 'papermc'
+        url = uri('https://repo.papermc.io/repository/maven-public/')
+    }
+}
+
+dependencies {
+    compileOnly 'io.papermc.paper:paper-api:1.21.10-R0.1-SNAPSHOT'
+    compileOnly 'org.xerial:sqlite-jdbc:3.44.0.0'
+
+    testImplementation platform('org.junit:junit-bom:5.11.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'org.mockito:mockito-core:5.14.2'
+    testImplementation 'com.github.seeseemelk:MockBukkit-v1.21:3.133.2'
+    testImplementation 'io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT'
+}
+
+def jacocoExcludedClasses = [
+    'dev/deepcore/challenge/**',
+        'dev/deepcore/challenge/ChallengeSessionManager*',
+        'dev/deepcore/challenge/WorldResetManager*',
+        'dev/deepcore/challenge/ChallengeCommand*',
+        'dev/deepcore/DeepCorePlugin*',
+        'dev/deepcore/records/RunRecordsService*',
+        'dev/deepcore/logging/DeepCoreLogger*'
+]
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+}
+
+tasks.named('jar') {
+    archiveBaseName = 'DeepCore'
+}
+
+processResources {
+    filesMatching('plugin.yml') {
+        expand(version: project.version)
+    }
+}
+
+checkstyle {
+    toolVersion = '10.21.2'
+    configFile = file('config/checkstyle/checkstyle.xml')
+}
+
+spotless {
+    java {
+        target 'src/**/*.java'
+        palantirJavaFormat('2.43.0')
+        trimTrailingWhitespace()
+        endWithNewline()
+    }
+}
+
+tasks.withType(Checkstyle).configureEach {
+    reports {
+        xml.required = true
+        html.required = true
+    }
+}
+
+tasks.named('checkstyleTest') {
+    configFile = file('config/checkstyle/checkstyle-test.xml')
+}
+
+jacoco {
+    toolVersion = '0.8.12'
+}
+
+tasks.named('jacocoTestReport') {
+    dependsOn tasks.test
+    reports {
+        xml.required = true
+        html.required = true
+        csv.required = false
+    }
+}
+
+tasks.named('jacocoTestCoverageVerification') {
+    dependsOn tasks.test
+    classDirectories.setFrom(
+            files(classDirectories.files.collect {
+                fileTree(dir: it, exclude: jacocoExcludedClasses)
+            }))
+    violationRules {
+        rule {
+            element = 'BUNDLE'
+            limit {
+                counter = 'LINE'
+                value = 'COVEREDRATIO'
+                minimum = minCoverage
+            }
+        }
+    }
+}
+
+tasks.named('check') {
+    dependsOn tasks.jacocoTestReport
+    dependsOn tasks.jacocoTestCoverageVerification
+}
+
+tasks.register('quality') {
+    group = 'verification'
+    description = 'Runs formatting, typecheck, lint, tests, and coverage verification.'
+    dependsOn tasks.spotlessCheck
+    dependsOn tasks.compileJava
+    dependsOn tasks.compileTestJava
+    dependsOn tasks.checkstyleMain
+    dependsOn tasks.checkstyleTest
+    dependsOn tasks.test
+    dependsOn tasks.jacocoTestReport
+    dependsOn tasks.jacocoTestCoverageVerification
+}
+
+tasks.register('qualityMain') {
+    group = 'verification'
+    description = 'Runs formatting, typecheck, lint, and tests for main-branch CI.'
+    dependsOn tasks.spotlessCheck
+    dependsOn tasks.compileJava
+    dependsOn tasks.compileTestJava
+    dependsOn tasks.checkstyleMain
+    dependsOn tasks.checkstyleTest
+    dependsOn tasks.test
+}

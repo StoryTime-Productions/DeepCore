@@ -1,0 +1,10 @@
+{
+    "loop_ticks": 340,
+    "layers": [
+        {
+            "volume": 1.0,
+            "sound": "storytime:disco.jackpot",
+            "pitch": 1.0
+        }
+    ]
+}
