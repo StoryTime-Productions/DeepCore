@@ -1,0 +1,14 @@
+dev.deepcore
+dev.deepcore.challenge
+dev.deepcore.challenge.config
+dev.deepcore.challenge.events
+dev.deepcore.challenge.inventory
+dev.deepcore.challenge.portal
+dev.deepcore.challenge.preview
+dev.deepcore.challenge.session
+dev.deepcore.challenge.training
+dev.deepcore.challenge.ui
+dev.deepcore.challenge.vitals
+dev.deepcore.challenge.world
+dev.deepcore.logging
+dev.deepcore.records
