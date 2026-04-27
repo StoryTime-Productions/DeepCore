@@ -290,6 +290,10 @@ public final class PrepGuiCoordinatorService {
 
                     player.closeInventory();
                     previewOrchestratorService.playPreviewDestroyAnimationThenReset(player);
+                },
+                () -> {
+                    player.closeInventory();
+                    player.performCommand("challenge train");
                 });
     }
 
@@ -325,6 +329,15 @@ public final class PrepGuiCoordinatorService {
         // Run next tick to avoid competing with close event inventory state changes.
         Bukkit.getScheduler().runTask(plugin, () -> {
             if (!player.isOnline() || !sessionState.is(SessionState.Phase.PREP)) {
+                return;
+            }
+
+            String trainingWorldName = "deepcore_gym";
+            if (plugin.getConfig() != null) {
+                trainingWorldName = plugin.getConfig().getString("training.world", "deepcore_gym");
+            }
+            if (player.getWorld() != null && player.getWorld().getName().equalsIgnoreCase(trainingWorldName)) {
+                prepBookService.removeFromInventory(player);
                 return;
             }
 

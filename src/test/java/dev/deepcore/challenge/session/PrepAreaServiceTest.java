@@ -12,7 +12,6 @@ import java.util.Set;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
-import org.bukkit.WorldBorder;
 import org.bukkit.entity.Player;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
@@ -50,16 +49,8 @@ class PrepAreaServiceTest {
         service.applyBorder(player, false, w -> true);
         verify(player, times(2)).setWorldBorder(null);
 
-        Location spawn = new Location(world, 0.0D, 64.0D, 0.0D);
-        when(world.getSpawnLocation()).thenReturn(spawn);
-        WorldBorder border = mock(WorldBorder.class);
-
-        try (MockedStatic<Bukkit> bukkit = org.mockito.Mockito.mockStatic(Bukkit.class)) {
-            bukkit.when(Bukkit::createWorldBorder).thenReturn(border);
-            service.applyBorder(player, false, w -> false);
-            verify(border).setSize(30.0D);
-            verify(player).setWorldBorder(border);
-        }
+        service.applyBorder(player, false, w -> false);
+        verify(player, times(3)).setWorldBorder(null);
     }
 
     @Test
@@ -74,13 +65,12 @@ class PrepAreaServiceTest {
 
         try (MockedStatic<Bukkit> bukkit = org.mockito.Mockito.mockStatic(Bukkit.class)) {
             bukkit.when(Bukkit::getOnlinePlayers).thenReturn(Set.of(p1, p2));
-            bukkit.when(Bukkit::createWorldBorder).thenReturn(mock(WorldBorder.class));
 
             service.applyBordersToOnlinePlayers(false, w -> false);
             service.clearBorders();
 
-            verify(p1).setWorldBorder(null);
-            verify(p2).setWorldBorder(null);
+            verify(p1, times(2)).setWorldBorder(null);
+            verify(p2, times(2)).setWorldBorder(null);
         }
     }
 }

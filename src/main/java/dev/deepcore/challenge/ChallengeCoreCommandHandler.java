@@ -1,5 +1,6 @@
 package dev.deepcore.challenge;
 
+import dev.deepcore.challenge.training.TrainingManager;
 import dev.deepcore.logging.DeepCoreLogger;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -15,16 +16,20 @@ import org.bukkit.command.CommandSender;
  */
 public final class ChallengeCoreCommandHandler {
     private final ChallengeAdminFacade adminFacade;
+    private final TrainingManager trainingManager;
     private final DeepCoreLogger logger;
 
     /**
      * Creates a core command handler for non-logs `/challenge` subcommands.
      *
-     * @param adminFacade admin facade providing challenge control operations
-     * @param logger      logger used for command diagnostics
+     * @param adminFacade     admin facade providing challenge control operations
+     * @param trainingManager training gym manager
+     * @param logger          logger used for command diagnostics
      */
-    public ChallengeCoreCommandHandler(ChallengeAdminFacade adminFacade, DeepCoreLogger logger) {
+    public ChallengeCoreCommandHandler(
+            ChallengeAdminFacade adminFacade, TrainingManager trainingManager, DeepCoreLogger logger) {
         this.adminFacade = adminFacade;
+        this.trainingManager = trainingManager;
         this.logger = logger;
     }
 
@@ -43,6 +48,9 @@ public final class ChallengeCoreCommandHandler {
 
         String subcommand = args[0].toLowerCase(Locale.ROOT);
         switch (subcommand) {
+            case "train" -> {
+                return trainingManager.handleCommand(sender, args);
+            }
             case "list" -> {
                 sendInfo(sender, ChatColor.GOLD + "Available challenge modes:");
                 for (ChallengeMode mode : ChallengeMode.values()) {
@@ -52,6 +60,9 @@ public final class ChallengeCoreCommandHandler {
                 return true;
             }
             case "enable" -> {
+                if (!requireAdminPermission(sender)) {
+                    return true;
+                }
                 if (!canEditSettings(sender)) {
                     return true;
                 }
@@ -61,6 +72,9 @@ public final class ChallengeCoreCommandHandler {
                 return true;
             }
             case "disable" -> {
+                if (!requireAdminPermission(sender)) {
+                    return true;
+                }
                 if (!canEditSettings(sender)) {
                     return true;
                 }
@@ -70,6 +84,9 @@ public final class ChallengeCoreCommandHandler {
                 return true;
             }
             case "mode" -> {
+                if (!requireAdminPermission(sender)) {
+                    return true;
+                }
                 if (!canEditSettings(sender)) {
                     return true;
                 }
@@ -166,8 +183,34 @@ public final class ChallengeCoreCommandHandler {
                 adminFacade.resetWorlds(sender);
                 return true;
             }
+            case "lobby" -> {
+                if (!requireAdminPermission(sender)) {
+                    return true;
+                }
+
+                if (args.length < 2) {
+                    sendInfo(sender, ChatColor.RED + "Usage: /challenge lobby <limbo|overworld|nether>");
+                    return true;
+                }
+
+                String selector = args[1].toLowerCase(Locale.ROOT);
+                String selectedWorldName = adminFacade.selectLobbyWorld(selector);
+                if (selectedWorldName == null) {
+                    sendInfo(sender, ChatColor.RED + "Unknown lobby selector. Use limbo|overworld|nether.");
+                    return true;
+                }
+
+                int teleported = adminFacade.teleportOnlinePlayersToActiveLobby();
+                sendInfo(
+                        sender, ChatColor.GREEN + "Active lobby world set to: " + ChatColor.YELLOW + selectedWorldName);
+                sendInfo(
+                        sender,
+                        ChatColor.GREEN + "Teleported players to active lobby: " + ChatColor.YELLOW + teleported);
+                return true;
+            }
             case "reload" -> {
-                if (!sender.hasPermission("deepcore.challenge.reload")) {
+                if (!sender.hasPermission("deepcore.challenge.reload")
+                        && !sender.hasPermission("deepcore.challenge.admin")) {
                     sendInfo(sender, ChatColor.RED + "You do not have permission to reload config.");
                     return true;
                 }
@@ -186,7 +229,7 @@ public final class ChallengeCoreCommandHandler {
                 sendInfo(
                         sender,
                         ChatColor.RED
-                                + "Unknown subcommand. Use /challenge <status|list|enable|disable|mode|component|end|stop|pause|resume|reset|resetworld|reload|logs>.");
+                                + "Unknown subcommand. Use /challenge <status|train|list|enable|disable|mode|component|end|stop|pause|resume|reset|resetworld|lobby|reload|logs>.");
                 return true;
             }
         }
@@ -204,6 +247,7 @@ public final class ChallengeCoreCommandHandler {
                     args[0],
                     Arrays.asList(
                             "status",
+                            "train",
                             "list",
                             "enable",
                             "disable",
@@ -215,8 +259,13 @@ public final class ChallengeCoreCommandHandler {
                             "resume",
                             "reset",
                             "resetworld",
+                            "lobby",
                             "reload",
                             "logs"));
+        }
+
+        if (args.length >= 2 && args[0].equalsIgnoreCase("train")) {
+            return trainingManager.tabComplete(args);
         }
 
         if (args.length == 2 && args[0].equalsIgnoreCase("mode")) {
@@ -225,6 +274,10 @@ public final class ChallengeCoreCommandHandler {
                     Arrays.stream(ChallengeMode.values())
                             .map(ChallengeMode::key)
                             .collect(Collectors.toList()));
+        }
+
+        if (args.length == 2 && args[0].equalsIgnoreCase("lobby")) {
+            return filterByPrefix(args[1], Arrays.asList("limbo", "overworld", "nether"));
         }
 
         if (args.length == 2 && args[0].equalsIgnoreCase("component")) {
@@ -268,6 +321,10 @@ public final class ChallengeCoreCommandHandler {
     private void handleComponentSubcommand(CommandSender sender, String[] args) {
         if (args.length < 2 || args[1].equalsIgnoreCase("status") || args[1].equalsIgnoreCase("list")) {
             sendComponentStatus(sender);
+            return;
+        }
+
+        if (!requireAdminPermission(sender)) {
             return;
         }
 
@@ -338,6 +395,15 @@ public final class ChallengeCoreCommandHandler {
         }
 
         sendInfo(sender, ChatColor.RED + "Settings are locked once everyone is ready.");
+        return false;
+    }
+
+    private boolean requireAdminPermission(CommandSender sender) {
+        if (sender.hasPermission("deepcore.challenge.admin")) {
+            return true;
+        }
+
+        sendInfo(sender, ChatColor.RED + "You do not have permission to manage challenge settings.");
         return false;
     }
 

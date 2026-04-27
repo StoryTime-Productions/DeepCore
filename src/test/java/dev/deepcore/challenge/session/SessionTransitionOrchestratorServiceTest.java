@@ -314,7 +314,7 @@ class SessionTransitionOrchestratorServiceTest {
 
             service.endChallengeAndReturnToPrep();
             verify(resetManager).selectRandomLobbyWorld();
-            verify(log).info("DeepCore is now back in prep mode.");
+            verify(log).info("Waiting for players...");
         }
     }
 }

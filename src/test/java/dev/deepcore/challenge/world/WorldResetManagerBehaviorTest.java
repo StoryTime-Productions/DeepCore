@@ -378,6 +378,47 @@ class WorldResetManagerBehaviorTest {
     }
 
     @Test
+    void cleanupNonDefaultWorldsOnStartup_keepsConfiguredTrainingWorldDirectory() throws Exception {
+        Path worldContainer = Files.createTempDirectory("deepcore-worlds-");
+        Files.writeString(worldContainer.resolve("server.properties"), "level-name=world\n");
+
+        Path defaultWorld = worldContainer.resolve("world");
+        Path trainingWorld = worldContainer.resolve("deepcore_gym");
+        Path staleWorld = worldContainer.resolve("old_run_world");
+        Files.createDirectories(defaultWorld);
+        Files.createDirectories(trainingWorld);
+        Files.writeString(trainingWorld.resolve("level.dat"), "dummy");
+        Files.createDirectories(staleWorld);
+        Files.writeString(staleWorld.resolve("level.dat"), "dummy");
+
+        DeepCorePlugin plugin = mock(DeepCorePlugin.class);
+        YamlConfiguration config = new YamlConfiguration();
+        config.set("training.world", "deepcore_gym");
+        when(plugin.getConfig()).thenReturn(config);
+        when(plugin.getDeepCoreLogger()).thenReturn(mock(DeepCoreLogger.class));
+        Server server = mock(Server.class);
+        when(plugin.getServer()).thenReturn(server);
+        when(server.getWorldContainer()).thenReturn(worldContainer.toFile());
+
+        World defaultWorldObj = mock(World.class);
+        when(defaultWorldObj.getName()).thenReturn("world");
+
+        WorldResetManager manager = new WorldResetManager(plugin, mock(ChallengeSessionWorldBridge.class));
+        try (MockedStatic<Bukkit> bukkit = org.mockito.Mockito.mockStatic(Bukkit.class)) {
+            bukkit.when(Bukkit::getWorlds).thenReturn(List.of(defaultWorldObj));
+            bukkit.when(() -> Bukkit.getWorld("world")).thenReturn(defaultWorldObj);
+            bukkit.when(() -> Bukkit.getWorld("old_run_world")).thenReturn(null);
+            bukkit.when(() -> Bukkit.getWorld("deepcore_gym")).thenReturn(null);
+
+            manager.cleanupNonDefaultWorldsOnStartup();
+        }
+
+        assertTrue(Files.exists(defaultWorld));
+        assertTrue(Files.exists(trainingWorld));
+        assertFalse(Files.exists(staleWorld));
+    }
+
+    @Test
     void cleanupNonDefaultWorldsOnStartup_keepsNonWorldDirectories() throws Exception {
         Path worldContainer = Files.createTempDirectory("deepcore-worlds-");
         Files.writeString(worldContainer.resolve("server.properties"), "level-name=world\n");
@@ -522,6 +563,42 @@ class WorldResetManagerBehaviorTest {
             org.junit.jupiter.api.Assertions.assertEquals(65.0D, spawn.getY());
             org.junit.jupiter.api.Assertions.assertEquals(20.5D, spawn.getZ());
         }
+    }
+
+    @Test
+    void teleportOnlinePlayersToActiveLobby_usesConfiguredWorldAnchorCoordinates() throws Exception {
+        DeepCorePlugin plugin = mock(DeepCorePlugin.class);
+        YamlConfiguration config = new YamlConfiguration();
+        config.set("challenge.preview_hologram_anchor.worlds.deepcore_lobby_overworld.enabled", true);
+        config.set("challenge.preview_hologram_anchor.worlds.deepcore_lobby_overworld.x", 21.5D);
+        config.set("challenge.preview_hologram_anchor.worlds.deepcore_lobby_overworld.y", 94.0D);
+        config.set("challenge.preview_hologram_anchor.worlds.deepcore_lobby_overworld.z", -41.5D);
+        when(plugin.getConfig()).thenReturn(config);
+        when(plugin.getDeepCoreLogger()).thenReturn(mock(DeepCoreLogger.class));
+
+        WorldResetManager manager = new WorldResetManager(plugin, mock(ChallengeSessionWorldBridge.class));
+
+        World lobby = mock(World.class);
+        UUID lobbyId = UUID.randomUUID();
+        when(lobby.getUID()).thenReturn(lobbyId);
+        when(lobby.getName()).thenReturn("deepcore_lobby_overworld");
+        when(lobby.getSpawnLocation()).thenReturn(new Location(lobby, 0.0D, 64.0D, 0.0D));
+        setField(manager, "activeLobbyWorldId", lobbyId);
+
+        Player player = mock(Player.class);
+
+        try (MockedStatic<Bukkit> bukkit = org.mockito.Mockito.mockStatic(Bukkit.class)) {
+            bukkit.when(() -> Bukkit.getWorld(lobbyId)).thenReturn(lobby);
+            bukkit.when(Bukkit::getOnlinePlayers).thenReturn(Set.of(player));
+
+            int moved = manager.teleportOnlinePlayersToActiveLobby();
+            org.junit.jupiter.api.Assertions.assertEquals(1, moved);
+        }
+
+        verify(player).teleport((Location) org.mockito.ArgumentMatchers.argThat((Location location) -> location != null
+                && Math.abs(location.getX() - 21.5D) < 0.001D
+                && Math.abs(location.getY() - 94.0D) < 0.001D
+                && Math.abs(location.getZ() - -41.5D) < 0.001D));
     }
 
     @Test

@@ -81,21 +81,20 @@ public final class SessionFailureService {
 
     /** Evaluates and handles all-players-dead failure reset conditions. */
     public void handleAllPlayersDeadFailureIfNeeded() {
-        if (!sessionState.is(SessionState.Phase.RUNNING)
-                || challengeManager.isComponentEnabled(ChallengeComponent.HARDCORE)
-                || participants.isEmpty()) {
-            return;
-        }
-
-        boolean allDead = participants.stream()
-                .allMatch(uuid -> recentlyDeadPlayers.contains(uuid) || eliminatedPlayers.contains(uuid));
-
-        if (!allDead || recentlyDeadPlayers.isEmpty()) {
-            return;
-        }
-
         WorldResetManager worldResetManager = worldResetManagerSupplier.get();
-        if (worldResetManager == null || !challengeManager.isEnabled()) {
+        if (!sessionState.is(SessionState.Phase.RUNNING) || worldResetManager == null) {
+            return;
+        }
+
+        if (!challengeManager.isEnabled() || challengeManager.isComponentEnabled(ChallengeComponent.HARDCORE)) {
+            return;
+        }
+
+        if (participants.isEmpty() || recentlyDeadPlayers.isEmpty()) {
+            return;
+        }
+
+        if (!recentlyDeadPlayers.containsAll(participants)) {
             return;
         }
 

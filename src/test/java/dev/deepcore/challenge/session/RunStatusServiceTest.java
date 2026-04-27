@@ -88,7 +88,7 @@ class RunStatusServiceTest {
         service.tickProgressFromParticipants(players, 2_000L, true);
 
         verify(progress).updateMilestonesFromParticipants(players, 2_000L);
-        verify(log).info(any());
+        verify(log).debug(any());
     }
 
     @Test
@@ -100,7 +100,7 @@ class RunStatusServiceTest {
         service.tickProgressFromParticipants(players, 2_100L, true);
 
         verify(progress).updateMilestonesFromParticipants(players, 2_100L);
-        verify(log, never()).info(any());
+        verify(log, never()).debug(any());
     }
 
     @Test

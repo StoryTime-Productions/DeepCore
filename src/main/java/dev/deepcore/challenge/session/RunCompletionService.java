@@ -75,7 +75,7 @@ public final class RunCompletionService {
 
         long dragonDeathTime = System.currentTimeMillis();
         runProgressService.markDragonKilled(dragonDeathTime);
-        log.info("Challenge complete: Ender Dragon defeated!");
+        log.info("Victory! Ender Dragon defeated!");
 
         recordRunIfAvailable(dragonDeathTime);
         startCompletionReturnCountdown();
@@ -106,7 +106,7 @@ public final class RunCompletionService {
                 10,
                 () -> sessionState.is(SessionState.Phase.RUNNING) && runProgressService.isDragonKilled(),
                 this::completeDragonWinFlow,
-                secondsLeft -> log.info("Returning to lobby in " + secondsLeft + " seconds."));
+                secondsLeft -> log.info("Lobby in " + secondsLeft + "s..."));
     }
 
     private void completeDragonWinFlow() {

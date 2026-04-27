@@ -107,6 +107,7 @@ class PrepGuiRendererTest {
         renderer.populateCategoriesPage(categories, true, 2, 3, true);
         assertEquals(Material.EMERALD_BLOCK, categories.getItem(47).getType());
         assertTrue(categories.getItem(51).getItemMeta().getLore().get(0).contains("refresh pedestal preview"));
+        assertEquals(Material.ENDER_PEARL, categories.getItem(53).getType());
 
         Inventory inventoryPage = Bukkit.createInventory(null, 54, "inventory");
         renderer.populateInventoryPage(inventoryPage, challengeManager, false, 1, 3, false);

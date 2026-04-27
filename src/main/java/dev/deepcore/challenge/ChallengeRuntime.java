@@ -1,5 +1,6 @@
 package dev.deepcore.challenge;
 
+import dev.deepcore.challenge.training.TrainingManager;
 import dev.deepcore.challenge.world.WorldResetManager;
 import dev.deepcore.records.RunRecordsService;
 
@@ -11,6 +12,7 @@ public final class ChallengeRuntime {
     private final ChallengeSessionManager challengeSessionManager;
     private final WorldResetManager worldResetManager;
     private final RunRecordsService runRecordsService;
+    private final TrainingManager trainingManager;
 
     /**
      * Creates an immutable runtime container for challenge services.
@@ -19,16 +21,19 @@ public final class ChallengeRuntime {
      * @param challengeSessionManager challenge session orchestration manager
      * @param worldResetManager       world reset and lifecycle manager
      * @param runRecordsService       run records persistence/query service
+     * @param trainingManager         training gym manager
      */
     public ChallengeRuntime(
             ChallengeManager challengeManager,
             ChallengeSessionManager challengeSessionManager,
             WorldResetManager worldResetManager,
-            RunRecordsService runRecordsService) {
+            RunRecordsService runRecordsService,
+            TrainingManager trainingManager) {
         this.challengeManager = challengeManager;
         this.challengeSessionManager = challengeSessionManager;
         this.worldResetManager = worldResetManager;
         this.runRecordsService = runRecordsService;
+        this.trainingManager = trainingManager;
     }
 
     /**
@@ -65,5 +70,14 @@ public final class ChallengeRuntime {
      */
     public RunRecordsService getRunRecordsService() {
         return runRecordsService;
+    }
+
+    /**
+     * Returns the training gym manager instance.
+     *
+     * @return training manager
+     */
+    public TrainingManager getTrainingManager() {
+        return trainingManager;
     }
 }

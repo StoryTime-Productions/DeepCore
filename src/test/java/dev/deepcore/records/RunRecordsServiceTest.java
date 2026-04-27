@@ -47,7 +47,7 @@ class RunRecordsServiceTest {
             service.initialize();
         }
 
-        verify(log).info(org.mockito.ArgumentMatchers.contains("initialized successfully"));
+        verify(log).debug(org.mockito.ArgumentMatchers.contains("initialized successfully"));
     }
 
     @Test
@@ -301,7 +301,7 @@ class RunRecordsServiceTest {
 
         verify(dropStmt).executeUpdate("DROP TABLE IF EXISTS run_records");
         verify(log).warn(org.mockito.ArgumentMatchers.contains("Legacy run_records schema detected"));
-        verify(log).info(org.mockito.ArgumentMatchers.contains("run_records table recreated"));
+        verify(log).debug(org.mockito.ArgumentMatchers.contains("run_records table recreated"));
         verify(createStmt)
                 .executeUpdate(org.mockito.ArgumentMatchers.contains("CREATE TABLE IF NOT EXISTS run_records"));
         verify(recreateStmt)

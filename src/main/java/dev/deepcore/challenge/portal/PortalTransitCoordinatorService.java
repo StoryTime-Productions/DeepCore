@@ -144,20 +144,6 @@ public final class PortalTransitCoordinatorService {
     public void handlePlayerMove(PlayerMoveEvent event) {
         if (sessionState.is(SessionState.Phase.RUNNING)) {
             tryHandleEndPortalTransit(event.getPlayer());
-            return;
-        }
-
-        Location to = event.getTo();
-        if (to == null) {
-            return;
-        }
-
-        if (worldClassificationService.isLobbyOrLimboWorld(to.getWorld())) {
-            return;
-        }
-
-        if (!prepAreaService.isWithinPrepArea(to)) {
-            event.setTo(prepAreaService.clampToPrepArea(to));
         }
     }
 

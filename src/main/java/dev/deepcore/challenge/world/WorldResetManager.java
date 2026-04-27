@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Properties;
 import java.util.Set;
 import java.util.UUID;
@@ -29,6 +30,7 @@ import org.bukkit.World;
 import org.bukkit.WorldCreator;
 import org.bukkit.WorldType;
 import org.bukkit.command.CommandSender;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.BlockDisplay;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.ItemDisplay;
@@ -51,6 +53,12 @@ public final class WorldResetManager {
     private static final String LIMBO_WORLD_NAME_PATH = "reset.limbo-world-name";
     private static final String LOBBY_OVERWORLD_WORLD_NAME_PATH = "reset.lobby-overworld-world-name";
     private static final String LOBBY_NETHER_WORLD_NAME_PATH = "reset.lobby-nether-world-name";
+    private static final String TRAINING_WORLD_NAME_PATH = "training.world";
+    private static final String PREVIEW_ANCHOR_X_PATH = "challenge.preview_hologram_anchor.x";
+    private static final String PREVIEW_ANCHOR_Y_PATH = "challenge.preview_hologram_anchor.y";
+    private static final String PREVIEW_ANCHOR_Z_PATH = "challenge.preview_hologram_anchor.z";
+    private static final String PREVIEW_ANCHOR_ENABLED_PATH = "challenge.preview_hologram_anchor.enabled";
+    private static final String PREVIEW_ANCHOR_WORLDS_PATH = "challenge.preview_hologram_anchor.worlds";
     private static final String LOBBY_SPAWN_IN_LIMBO_PATH = "challenge.lobby_spawn_in_limbo_by_default";
     private static final String DISCO_WORLD_CHANCE_PATH = "reset.disco-world-chance";
     private static final String DISCO_BALL_TEXTURE_URL =
@@ -146,6 +154,10 @@ public final class WorldResetManager {
         defaultWorlds.add(activeOverworld + "_nether");
         defaultWorlds.add(activeOverworld + "_the_end");
         defaultWorlds.addAll(getLobbyWorldNames());
+        String trainingWorldName = resolveConfiguredTrainingWorldName();
+        if (!trainingWorldName.isBlank()) {
+            defaultWorlds.add(trainingWorldName);
+        }
 
         for (World world : new ArrayList<>(Bukkit.getWorlds())) {
             String worldName = world.getName();
@@ -451,6 +463,89 @@ public final class WorldResetManager {
         return selected;
     }
 
+    /**
+     * Sets the active lobby world by selector key.
+     *
+     * @param selector one of limbo, overworld, or nether
+     * @return selected world, or null when selector is invalid or world could not
+     *         be loaded
+     */
+    public World selectLobbyWorld(String selector) {
+        if (selector == null) {
+            return null;
+        }
+
+        String normalized = selector.trim().toLowerCase();
+        World selected =
+                switch (normalized) {
+                    case "limbo" -> getOrCreateLimboWorld(
+                            plugin.getConfig().getString(LIMBO_WORLD_NAME_PATH, "deepcore_limbo"));
+                    case "overworld" -> getOrCreateLobbyOverworldWorld(
+                            plugin.getConfig().getString(LOBBY_OVERWORLD_WORLD_NAME_PATH, "deepcore_lobby_overworld"));
+                    case "nether" -> getOrCreateLobbyNetherWorld(
+                            plugin.getConfig().getString(LOBBY_NETHER_WORLD_NAME_PATH, "deepcore_lobby_nether"));
+                    default -> null;
+                };
+
+        if (selected != null) {
+            activeLobbyWorldId = selected.getUID();
+        }
+        return selected;
+    }
+
+    /**
+     * Teleports online players to the currently active lobby world spawn.
+     *
+     * @return count of players teleported
+     */
+    public int teleportOnlinePlayersToActiveLobby() {
+        World activeLobby = getActiveLobbyWorld();
+        if (activeLobby == null) {
+            return 0;
+        }
+
+        Location lobbySpawn = resolveConfiguredLobbyArrivalLocation(activeLobby);
+        int teleported = 0;
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            player.teleport(lobbySpawn);
+            teleported++;
+        }
+        return teleported;
+    }
+
+    private Location resolveConfiguredLobbyArrivalLocation(World lobbyWorld) {
+        Location fallback = lobbyWorld.getSpawnLocation().clone().add(0.5D, 1.0D, 0.5D);
+
+        ConfigurationSection worldAnchors = plugin.getConfig().getConfigurationSection(PREVIEW_ANCHOR_WORLDS_PATH);
+        if (worldAnchors != null) {
+            ConfigurationSection worldAnchor = worldAnchors.getConfigurationSection(lobbyWorld.getName());
+            if (worldAnchor == null) {
+                worldAnchor = worldAnchors.getConfigurationSection(
+                        lobbyWorld.getName().toLowerCase(Locale.ROOT));
+            }
+
+            if (worldAnchor != null) {
+                boolean hasCoords = worldAnchor.contains("x") || worldAnchor.contains("y") || worldAnchor.contains("z");
+                boolean enabled = worldAnchor.getBoolean("enabled", hasCoords);
+                if (enabled) {
+                    double x = worldAnchor.getDouble("x", fallback.getX());
+                    double y = worldAnchor.getDouble("y", fallback.getY());
+                    double z = worldAnchor.getDouble("z", fallback.getZ());
+                    return new Location(lobbyWorld, x, y, z);
+                }
+            }
+        }
+
+        if (plugin.getConfig().getBoolean(PREVIEW_ANCHOR_ENABLED_PATH, false)) {
+            double x = plugin.getConfig().getDouble(PREVIEW_ANCHOR_X_PATH, fallback.getX());
+            double y = plugin.getConfig().getDouble(PREVIEW_ANCHOR_Y_PATH, fallback.getY());
+            double z = plugin.getConfig().getDouble(PREVIEW_ANCHOR_Z_PATH, fallback.getZ());
+            return new Location(lobbyWorld, x, y, z);
+        }
+
+        return fallback;
+    }
+
     private World createOverworld(String worldName) {
         WorldCreator creator = new WorldCreator(worldName);
         creator.environment(World.Environment.NORMAL);
@@ -704,6 +799,14 @@ public final class WorldResetManager {
         }
 
         return "world";
+    }
+
+    private String resolveConfiguredTrainingWorldName() {
+        String configuredName = plugin.getConfig().getString(TRAINING_WORLD_NAME_PATH, "deepcore_gym");
+        if (configuredName == null) {
+            return "";
+        }
+        return configuredName.trim();
     }
 
     private void ensureWorldStorageDirectories(World world) throws IOException {

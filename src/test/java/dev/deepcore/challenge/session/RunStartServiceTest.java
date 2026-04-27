@@ -203,7 +203,7 @@ class RunStartServiceTest {
             verify(syncHunger).run();
             verify(applyHalfHeart).run();
 
-            verify(log).info("DeepCore run started.");
+            verify(log).info("Run started!");
         }
     }
 

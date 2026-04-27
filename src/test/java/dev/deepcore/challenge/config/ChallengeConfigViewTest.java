@@ -27,6 +27,7 @@ class ChallengeConfigViewTest {
         assertEquals("deepcore_limbo", view.limboWorldName());
         assertEquals("deepcore_lobby_overworld", view.lobbyOverworldWorldName());
         assertEquals("deepcore_lobby_nether", view.lobbyNetherWorldName());
+        assertEquals("deepcore_gym", view.trainingWorldName());
     }
 
     @Test
@@ -42,6 +43,7 @@ class ChallengeConfigViewTest {
         config.set("reset.limbo-world-name", "limbo_custom");
         config.set("reset.lobby-overworld-world-name", "lobby_custom_overworld");
         config.set("reset.lobby-nether-world-name", "lobby_custom_nether");
+        config.set("training.world", "training_custom");
 
         ChallengeConfigView view = newView(config);
 
@@ -55,6 +57,7 @@ class ChallengeConfigViewTest {
         assertEquals("limbo_custom", view.limboWorldName());
         assertEquals("lobby_custom_overworld", view.lobbyOverworldWorldName());
         assertEquals("lobby_custom_nether", view.lobbyNetherWorldName());
+        assertEquals("training_custom", view.trainingWorldName());
     }
 
     private static ChallengeConfigView newView(YamlConfiguration config) {

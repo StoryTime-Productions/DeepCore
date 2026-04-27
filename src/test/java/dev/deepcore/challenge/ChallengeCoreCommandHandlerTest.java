@@ -9,6 +9,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import dev.deepcore.challenge.training.TrainingManager;
 import dev.deepcore.logging.DeepCoreLogger;
 import java.util.EnumMap;
 import java.util.List;
@@ -20,6 +21,7 @@ import org.junit.jupiter.api.Test;
 class ChallengeCoreCommandHandlerTest {
 
     private ChallengeAdminFacade adminFacade;
+    private TrainingManager trainingManager;
     private DeepCoreLogger logger;
     private CommandSender sender;
     private ChallengeCoreCommandHandler handler;
@@ -27,9 +29,10 @@ class ChallengeCoreCommandHandlerTest {
     @BeforeEach
     void setUp() {
         adminFacade = mock(ChallengeAdminFacade.class);
+        trainingManager = mock(TrainingManager.class);
         logger = mock(DeepCoreLogger.class);
         sender = mock(CommandSender.class);
-        handler = new ChallengeCoreCommandHandler(adminFacade, logger);
+        handler = new ChallengeCoreCommandHandler(adminFacade, trainingManager, logger);
 
         when(adminFacade.getMode()).thenReturn(ChallengeMode.KEEP_INVENTORY_UNLIMITED_DEATHS);
         when(adminFacade.getPhaseName()).thenReturn("prep");
@@ -60,6 +63,7 @@ class ChallengeCoreCommandHandlerTest {
 
     @Test
     void handle_enableWhenLocked_doesNotEnable() {
+        when(sender.hasPermission("deepcore.challenge.admin")).thenReturn(true);
         when(adminFacade.canEditSettings()).thenReturn(false);
 
         assertTrue(handler.handle(sender, new String[] {"enable"}));
@@ -70,6 +74,7 @@ class ChallengeCoreCommandHandlerTest {
 
     @Test
     void handle_modeUnknown_sendsUnknownMessage() {
+        when(sender.hasPermission("deepcore.challenge.admin")).thenReturn(true);
         when(adminFacade.canEditSettings()).thenReturn(true);
 
         assertTrue(handler.handle(sender, new String[] {"mode", "bad_mode"}));
@@ -80,6 +85,7 @@ class ChallengeCoreCommandHandlerTest {
 
     @Test
     void handle_componentToggle_appliesOperation() {
+        when(sender.hasPermission("deepcore.challenge.admin")).thenReturn(true);
         when(adminFacade.canEditSettings()).thenReturn(true);
         when(adminFacade.isComponentEnabled(ChallengeComponent.SHARED_HEALTH)).thenReturn(true);
 
@@ -108,6 +114,7 @@ class ChallengeCoreCommandHandlerTest {
 
     @Test
     void handle_enable_disable_and_mode_valid_applyChanges() {
+        when(sender.hasPermission("deepcore.challenge.admin")).thenReturn(true);
         when(adminFacade.canEditSettings()).thenReturn(true);
 
         assertTrue(handler.handle(sender, new String[] {"enable"}));
@@ -121,6 +128,7 @@ class ChallengeCoreCommandHandlerTest {
 
     @Test
     void handle_component_invalidAndReset_branchesAreHandled() {
+        when(sender.hasPermission("deepcore.challenge.admin")).thenReturn(true);
         when(adminFacade.canEditSettings()).thenReturn(true);
 
         assertTrue(handler.handle(sender, new String[] {"component", "bad_key", "on"}));
@@ -230,6 +238,7 @@ class ChallengeCoreCommandHandlerTest {
 
     @Test
     void handle_list_and_modeWithoutArgument_showExpectedMessages() {
+        when(sender.hasPermission("deepcore.challenge.admin")).thenReturn(true);
         when(adminFacade.canEditSettings()).thenReturn(true);
 
         assertTrue(handler.handle(sender, new String[] {"list"}));
@@ -241,6 +250,7 @@ class ChallengeCoreCommandHandlerTest {
 
     @Test
     void handle_componentStatusUsageAndInvalidOperation_paths() {
+        when(sender.hasPermission("deepcore.challenge.admin")).thenReturn(true);
         when(adminFacade.canEditSettings()).thenReturn(true);
 
         assertTrue(handler.handle(sender, new String[] {"component"}));
@@ -276,5 +286,68 @@ class ChallengeCoreCommandHandlerTest {
         assertTrue(options.contains("status"));
         assertTrue(options.contains("reset"));
         assertTrue(options.contains("shared_health"));
+    }
+
+    @Test
+    void handle_trainSubcommand_delegatesToTrainingManager() {
+        when(trainingManager.handleCommand(sender, new String[] {"train", "stats"}))
+                .thenReturn(true);
+
+        assertTrue(handler.handle(sender, new String[] {"train", "stats"}));
+
+        verify(trainingManager).handleCommand(sender, new String[] {"train", "stats"});
+    }
+
+    @Test
+    void handle_lobbySubcommand_setsLobbyWhenSelectorValid() {
+        when(sender.hasPermission("deepcore.challenge.admin")).thenReturn(true);
+        when(adminFacade.selectLobbyWorld("limbo")).thenReturn("deepcore_limbo");
+        when(adminFacade.teleportOnlinePlayersToActiveLobby()).thenReturn(3);
+
+        assertTrue(handler.handle(sender, new String[] {"lobby", "limbo"}));
+
+        verify(adminFacade).selectLobbyWorld("limbo");
+        verify(adminFacade).teleportOnlinePlayersToActiveLobby();
+        verify(logger).sendInfo(any(CommandSender.class), contains("Active lobby world set to"));
+        verify(logger).sendInfo(any(CommandSender.class), contains("Teleported players to active lobby"));
+    }
+
+    @Test
+    void handle_lobbySubcommand_reportsInvalidSelector() {
+        when(sender.hasPermission("deepcore.challenge.admin")).thenReturn(true);
+        when(adminFacade.selectLobbyWorld("bad")).thenReturn(null);
+
+        assertTrue(handler.handle(sender, new String[] {"lobby", "bad"}));
+
+        verify(logger).sendInfo(any(CommandSender.class), contains("Unknown lobby selector"));
+        verify(adminFacade, never()).teleportOnlinePlayersToActiveLobby();
+    }
+
+    @Test
+    void handle_lobbySubcommand_requiresAdminPermission() {
+        when(sender.hasPermission("deepcore.challenge.admin")).thenReturn(false);
+
+        assertTrue(handler.handle(sender, new String[] {"lobby", "limbo"}));
+
+        verify(adminFacade, never()).selectLobbyWorld(any());
+        verify(logger).sendInfo(any(CommandSender.class), contains("do not have permission"));
+    }
+
+    @Test
+    void tabComplete_trainBranch_delegatesToTrainingManager() {
+        when(trainingManager.tabComplete(new String[] {"train", "st"})).thenReturn(List.of("stats", "start"));
+
+        List<String> completion = handler.tabComplete(new String[] {"train", "st"});
+
+        assertTrue(completion.contains("stats"));
+        assertTrue(completion.contains("start"));
+        verify(trainingManager).tabComplete(new String[] {"train", "st"});
+    }
+
+    @Test
+    void tabComplete_lobbyBranch_suggestsLobbySelectors() {
+        List<String> completion = handler.tabComplete(new String[] {"lobby", "n"});
+
+        assertTrue(completion.contains("nether"));
     }
 }

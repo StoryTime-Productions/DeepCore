@@ -1,6 +1,7 @@
 package dev.deepcore.challenge;
 
 import dev.deepcore.DeepCorePlugin;
+import dev.deepcore.challenge.training.TrainingManager;
 import dev.deepcore.challenge.world.WorldResetManager;
 import dev.deepcore.logging.DeepCoreLogger;
 import dev.deepcore.records.RunRecordsService;
@@ -33,12 +34,18 @@ public final class ChallengeRuntimeInitializer {
         recordsService.initialize();
         challengeSessionManager.setRecordsService(recordsService);
 
+        TrainingManager trainingManager = new TrainingManager(plugin);
+        trainingManager.initialize();
+
         challengeSessionManager.registerEventListeners();
         challengeSessionManager.initialize();
 
-        registerChallengeCommand(plugin, challengeManager, challengeSessionManager, worldResetManager, logger);
+        registerChallengeCommand(
+                plugin, challengeManager, challengeSessionManager, worldResetManager, trainingManager, logger);
+        registerLobbyCommand(plugin, trainingManager, challengeSessionManager, logger);
 
-        return new ChallengeRuntime(challengeManager, challengeSessionManager, worldResetManager, recordsService);
+        return new ChallengeRuntime(
+                challengeManager, challengeSessionManager, worldResetManager, recordsService, trainingManager);
     }
 
     private void registerChallengeCommand(
@@ -46,16 +53,31 @@ public final class ChallengeRuntimeInitializer {
             ChallengeManager challengeManager,
             ChallengeSessionManager challengeSessionManager,
             WorldResetManager worldResetManager,
+            TrainingManager trainingManager,
             DeepCoreLogger logger) {
         PluginCommand command = plugin.getCommand("challenge");
         if (command == null) {
             throw new IllegalStateException("Command 'challenge' is not defined in plugin.yml.");
         }
 
-        ChallengeCommand challengeCommand =
-                new ChallengeCommand(plugin, challengeManager, challengeSessionManager, worldResetManager);
+        ChallengeCommand challengeCommand = new ChallengeCommand(
+                plugin, challengeManager, challengeSessionManager, worldResetManager, trainingManager);
         command.setExecutor(challengeCommand);
         command.setTabCompleter(challengeCommand);
         logger.debug("Challenge command registered.");
+    }
+
+    private void registerLobbyCommand(
+            DeepCorePlugin plugin,
+            TrainingManager trainingManager,
+            ChallengeSessionManager challengeSessionManager,
+            DeepCoreLogger logger) {
+        PluginCommand command = plugin.getCommand("lobby");
+        if (command == null) {
+            throw new IllegalStateException("Command 'lobby' is not defined in plugin.yml.");
+        }
+
+        command.setExecutor(new LobbyCommand(trainingManager, challengeSessionManager));
+        logger.debug("Lobby command registered.");
     }
 }

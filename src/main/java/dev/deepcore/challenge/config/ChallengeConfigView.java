@@ -106,4 +106,13 @@ public final class ChallengeConfigView {
     public String lobbyNetherWorldName() {
         return plugin.getConfig().getString("reset.lobby-nether-world-name", "deepcore_lobby_nether");
     }
+
+    /**
+     * Returns configured training world name.
+     *
+     * @return world name used for training gym drills
+     */
+    public String trainingWorldName() {
+        return plugin.getConfig().getString("training.world", "deepcore_gym");
+    }
 }
