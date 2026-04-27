@@ -185,7 +185,7 @@ class PortalTransitCoordinatorServiceTest {
     }
 
     @Test
-    void handlePlayerMove_nonRunningClampsOutsidePrepArea() {
+    void handlePlayerMove_nonRunningDoesNotClampOutsidePrepArea() {
         SessionState state = new SessionState();
         state.setPhase(SessionState.Phase.PREP);
 
@@ -208,7 +208,7 @@ class PortalTransitCoordinatorServiceTest {
 
         service.handlePlayerMove(event);
 
-        verify(event).setTo(clamped);
+        verify(event, never()).setTo(any(Location.class));
     }
 
     @Test

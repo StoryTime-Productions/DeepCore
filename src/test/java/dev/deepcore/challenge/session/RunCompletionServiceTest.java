@@ -120,8 +120,8 @@ class RunCompletionServiceTest {
 
         verify(runProgressService).markDragonKilled(any(Long.class));
         verify(completionReturnService).start(anyInt(), any(), any(), any());
-        verify(log).info("Challenge complete: Ender Dragon defeated!");
-        verify(log).info("Returning to lobby in 10 seconds.");
+        verify(log).info("Victory! Ender Dragon defeated!");
+        verify(log).info("Lobby in 10s...");
 
         onComplete[0].run();
         verify(fallback).run();

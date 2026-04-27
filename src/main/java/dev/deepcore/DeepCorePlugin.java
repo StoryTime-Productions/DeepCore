@@ -26,7 +26,7 @@ public final class DeepCorePlugin extends JavaPlugin {
             return;
         }
 
-        deepCoreLogger.info("DeepCore enabled.");
+        deepCoreLogger.info("DeepCore loaded!");
     }
 
     @Override
@@ -35,6 +35,13 @@ public final class DeepCorePlugin extends JavaPlugin {
             challengeRuntime.getChallengeManager().saveToConfig();
         }
         if (challengeRuntime != null) {
+            challengeRuntime.getTrainingManager().shutdown();
+        }
+        if (challengeRuntime != null) {
+            if (challengeRuntime.getChallengeSessionManager().isRunningPhase()
+                    || challengeRuntime.getChallengeSessionManager().isPausedPhase()) {
+                challengeRuntime.getChallengeSessionManager().endChallengeAndReturnToPrep();
+            }
             challengeRuntime.getChallengeSessionManager().shutdown();
         }
         if (challengeRuntime != null) {

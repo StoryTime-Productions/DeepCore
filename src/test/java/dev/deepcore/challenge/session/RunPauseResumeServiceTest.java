@@ -172,7 +172,7 @@ class RunPauseResumeServiceTest {
         verify(degradingTask).cancel();
         verify(clearActionBar).run();
         verify(prepArea).clearBorders();
-        verify(log).info("Challenge paused by admin.");
+        verify(log).info("Run paused by admin");
     }
 
     @Test
@@ -248,7 +248,7 @@ class RunPauseResumeServiceTest {
         verify(clearPausedSnapshots).run();
         verify(startActionBarTask).run();
         verify(resumeDegradingTask).run();
-        verify(log).info("Challenge resumed by host.");
+        verify(log).info("Run resumed by host");
 
         state.setPhase(SessionState.Phase.PAUSED);
         boolean resumedSecond = service.resume(sender);

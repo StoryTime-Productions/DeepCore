@@ -8,6 +8,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import dev.deepcore.DeepCorePlugin;
+import dev.deepcore.challenge.training.TrainingManager;
 import dev.deepcore.challenge.world.WorldResetManager;
 import dev.deepcore.logging.DeepCoreLogger;
 import java.util.EnumMap;
@@ -24,6 +25,7 @@ class ChallengeCommandTest {
     private ChallengeManager challengeManager;
     private ChallengeSessionManager sessionManager;
     private WorldResetManager worldResetManager;
+    private TrainingManager trainingManager;
     private DeepCoreLogger logger;
     private CommandSender sender;
     private ChallengeCommand commandHandler;
@@ -34,6 +36,7 @@ class ChallengeCommandTest {
         challengeManager = mock(ChallengeManager.class);
         sessionManager = mock(ChallengeSessionManager.class);
         worldResetManager = mock(WorldResetManager.class);
+        trainingManager = mock(TrainingManager.class);
         logger = mock(DeepCoreLogger.class);
         sender = mock(CommandSender.class);
         when(plugin.getDeepCoreLogger()).thenReturn(logger);
@@ -52,7 +55,8 @@ class ChallengeCommandTest {
         }
         when(challengeManager.getComponentToggles()).thenReturn(toggles);
 
-        commandHandler = new ChallengeCommand(plugin, challengeManager, sessionManager, worldResetManager);
+        commandHandler =
+                new ChallengeCommand(plugin, challengeManager, sessionManager, worldResetManager, trainingManager);
     }
 
     @Test

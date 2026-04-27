@@ -93,7 +93,7 @@ public final class RunStatusService {
     private void maybeMarkBlazeObjectiveReached(long timestampMillis, boolean runningPhase) {
         runProgressService
                 .maybeMarkBlazeObjectiveReached(runningPhase, lastObservedTeamBlazeRodCount, timestampMillis)
-                .ifPresent(splitMs -> log.info("Objective complete: Collect 6 Blaze Rods (split: "
+                .ifPresent(splitMs -> log.debug("Objective complete: Collect 6 Blaze Rods (split: "
                         + runUiFormattingService.formatSplitDuration(splitMs)
                         + ")"));
     }

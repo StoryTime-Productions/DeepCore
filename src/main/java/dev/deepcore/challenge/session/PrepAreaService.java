@@ -4,7 +4,6 @@ import java.util.function.Predicate;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
-import org.bukkit.WorldBorder;
 import org.bukkit.entity.Player;
 
 /**
@@ -57,18 +56,7 @@ public final class PrepAreaService {
      *                     be cleared
      */
     public void applyBorder(Player player, boolean runningPhase, Predicate<World> isLobbyWorld) {
-        if (runningPhase || isLobbyWorld.test(player.getWorld())) {
-            player.setWorldBorder(null);
-            return;
-        }
-
-        Location spawn = player.getWorld().getSpawnLocation();
-        WorldBorder border = Bukkit.createWorldBorder();
-        border.setCenter(spawn.getBlockX() + 0.5D, spawn.getBlockZ() + 0.5D);
-        border.setSize(prepAreaDiameterBlocks);
-        border.setWarningDistance(0);
-        border.setDamageAmount(0.0D);
-        player.setWorldBorder(border);
+        player.setWorldBorder(null);
     }
 
     /**

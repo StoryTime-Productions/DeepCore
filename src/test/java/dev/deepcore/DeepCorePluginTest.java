@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.never;
@@ -16,6 +17,7 @@ import static org.mockito.Mockito.withSettings;
 import dev.deepcore.challenge.ChallengeManager;
 import dev.deepcore.challenge.ChallengeRuntime;
 import dev.deepcore.challenge.ChallengeRuntimeInitializer;
+import dev.deepcore.challenge.training.TrainingManager;
 import dev.deepcore.logging.DeepCoreLogger;
 import java.lang.reflect.Field;
 import org.junit.jupiter.api.Test;
@@ -42,7 +44,7 @@ class DeepCorePluginTest {
 
             DeepCoreLogger logger = loggerConstruction.constructed().get(0);
             verify(logger).loadFromConfig();
-            verify(logger).info("DeepCore enabled.");
+            verify(logger).info("DeepCore loaded!");
             assertSame(logger, plugin.getDeepCoreLogger());
             assertSame(challengeManager, plugin.getChallengeManager());
             assertSame(runtime, getField(plugin, "challengeRuntime"));
@@ -68,7 +70,7 @@ class DeepCorePluginTest {
             DeepCoreLogger logger = loggerConstruction.constructed().get(0);
             verify(logger).loadFromConfig();
             verify(logger).error("init failed");
-            verify(logger, never()).info("DeepCore enabled.");
+            verify(logger, never()).info("DeepCore loaded!");
             assertNull(plugin.getChallengeManager());
         }
     }
@@ -81,17 +83,49 @@ class DeepCorePluginTest {
         dev.deepcore.challenge.ChallengeSessionManager sessionService =
                 mock(dev.deepcore.challenge.ChallengeSessionManager.class);
         dev.deepcore.records.RunRecordsService recordsService = mock(dev.deepcore.records.RunRecordsService.class);
+        TrainingManager trainingManager = mock(TrainingManager.class);
 
         when(runtime.getChallengeManager()).thenReturn(challengeManager);
         when(runtime.getChallengeSessionManager()).thenReturn(sessionService);
         when(runtime.getRunRecordsService()).thenReturn(recordsService);
+        when(runtime.getTrainingManager()).thenReturn(trainingManager);
+        when(sessionService.isRunningPhase()).thenReturn(true);
+        when(sessionService.isPausedPhase()).thenReturn(false);
 
         setField(plugin, "challengeRuntime", runtime);
         plugin.onDisable();
 
+        org.mockito.InOrder order = inOrder(challengeManager, trainingManager, sessionService, recordsService);
         verify(challengeManager).saveToConfig();
+        order.verify(challengeManager).saveToConfig();
+        order.verify(trainingManager).shutdown();
+        order.verify(sessionService).endChallengeAndReturnToPrep();
+        order.verify(sessionService).shutdown();
+        order.verify(recordsService).shutdown();
+    }
+
+    @Test
+    void onDisable_doesNotForceEndWhenSessionNotRunningOrPaused() {
+        DeepCorePlugin plugin = mock(DeepCorePlugin.class, withSettings().defaultAnswer(CALLS_REAL_METHODS));
+        ChallengeRuntime runtime = mock(ChallengeRuntime.class);
+        ChallengeManager challengeManager = mock(ChallengeManager.class);
+        dev.deepcore.challenge.ChallengeSessionManager sessionService =
+                mock(dev.deepcore.challenge.ChallengeSessionManager.class);
+        dev.deepcore.records.RunRecordsService recordsService = mock(dev.deepcore.records.RunRecordsService.class);
+        TrainingManager trainingManager = mock(TrainingManager.class);
+
+        when(runtime.getChallengeManager()).thenReturn(challengeManager);
+        when(runtime.getChallengeSessionManager()).thenReturn(sessionService);
+        when(runtime.getRunRecordsService()).thenReturn(recordsService);
+        when(runtime.getTrainingManager()).thenReturn(trainingManager);
+        when(sessionService.isRunningPhase()).thenReturn(false);
+        when(sessionService.isPausedPhase()).thenReturn(false);
+
+        setField(plugin, "challengeRuntime", runtime);
+        plugin.onDisable();
+
+        verify(sessionService, never()).endChallengeAndReturnToPrep();
         verify(sessionService).shutdown();
-        verify(recordsService).shutdown();
     }
 
     @Test

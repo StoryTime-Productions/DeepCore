@@ -53,6 +53,7 @@ public final class PrepGuiFlowService {
      * @param openPrepGui           action to open a specific prep GUI page
      * @param closeInventory        action to close the player's inventory
      * @param resetWorldFlow        action to trigger world regeneration flow
+     * @param trainingTeleportFlow  action to teleport player to training world
      * @return true when the click was handled by prep GUI flow logic
      */
     public boolean handleClick(
@@ -64,21 +65,25 @@ public final class PrepGuiFlowService {
             Runnable refreshOpenPrepGuis,
             Consumer<PrepGuiPage> openPrepGui,
             Runnable closeInventory,
-            Runnable resetWorldFlow) {
+            Runnable resetWorldFlow,
+            Runnable trainingTeleportFlow) {
         if (slot == 47 && page != PrepGuiPage.RUN_HISTORY) {
             readyToggleFlow.run();
             return true;
         }
 
-        boolean canResetWorldFromPage =
-                page == PrepGuiPage.CATEGORIES || page == PrepGuiPage.INVENTORY || page == PrepGuiPage.HEALTH;
-        if (canResetWorldFromPage && slot == 51) {
+        if (page == PrepGuiPage.CATEGORIES && slot == 51) {
             resetWorldFlow.run();
             return true;
         }
 
-        if (page == PrepGuiPage.RUN_HISTORY && slot == 45) {
-            openPrepGui.accept(PrepGuiPage.CATEGORIES);
+        if (page == PrepGuiPage.CATEGORIES && slot == 53) {
+            trainingTeleportFlow.run();
+            return true;
+        }
+
+        if (slot == 45 && page == PrepGuiPage.CATEGORIES) {
+            closeInventory.run();
             return true;
         }
 
@@ -100,11 +105,6 @@ public final class PrepGuiFlowService {
 
         if (slot == 20 && page == PrepGuiPage.CATEGORIES) {
             openPrepGui.accept(PrepGuiPage.INVENTORY);
-            return true;
-        }
-
-        if (slot == 45 && page == PrepGuiPage.CATEGORIES) {
-            closeInventory.run();
             return true;
         }
 
@@ -163,7 +163,7 @@ public final class PrepGuiFlowService {
                 return true;
             }
 
-            if (slot == 51 && prepGuiRenderer.hasRunHistoryNextPage(currentPage, totalRecords)) {
+            if (slot == 52 && prepGuiRenderer.hasRunHistoryNextPage(currentPage, totalRecords)) {
                 runHistoryPageIndices.put(player.getUniqueId(), currentPage + 1);
                 openPrepGui.accept(PrepGuiPage.RUN_HISTORY);
                 return true;

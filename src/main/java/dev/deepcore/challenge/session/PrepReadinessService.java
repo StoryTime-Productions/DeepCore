@@ -109,7 +109,7 @@ public final class PrepReadinessService {
         }
 
         prepAreaService.applyBordersToOnlinePlayers(
-                sessionState.is(SessionState.Phase.RUNNING), worldClassificationService::isLobbyOrLimboWorld);
+                sessionState.is(SessionState.Phase.RUNNING), worldClassificationService::isPrepBorderExemptWorld);
 
         startCountdown(participants, startRun);
     }
@@ -128,7 +128,7 @@ public final class PrepReadinessService {
         prepCountdownService.cancel();
         sessionState.setPhase(SessionState.Phase.PREP);
         participants.clear();
-        log.info("Countdown canceled because all players left.");
+        log.info("Countdown canceled - players left.");
     }
 
     private void startCountdown(Set<UUID> participants, Runnable startRun) {
@@ -139,6 +139,6 @@ public final class PrepReadinessService {
                         || Bukkit.getOnlinePlayers().isEmpty(),
                 () -> cancelCountdownIfNoPlayersOnline(participants),
                 startRun,
-                secondsLeft -> log.info("Speedrun starts in " + secondsLeft + "..."));
+                secondsLeft -> log.info("Run starts in " + secondsLeft + "..."));
     }
 }

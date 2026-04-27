@@ -76,6 +76,7 @@ public final class PrepGuiRenderer {
                         previewEnabled
                                 ? "Create a new run world and refresh pedestal preview"
                                 : "Create a new run world"));
+        inventory.setItem(53, createInfoItem(Material.ENDER_PEARL, "Training World", "Teleport to the training gym"));
     }
 
     /**
@@ -126,14 +127,6 @@ public final class PrepGuiRenderer {
                         Material.CLOCK,
                         "Ready: " + readyCount + "/" + onlineCount,
                         "Countdown starts automatically when all are ready"));
-        inventory.setItem(
-                51,
-                createInfoItem(
-                        Material.RECOVERY_COMPASS,
-                        "Regenerate World",
-                        previewEnabled
-                                ? "Create a new run world and refresh pedestal preview"
-                                : "Create a new run world"));
     }
 
     /**
@@ -191,14 +184,6 @@ public final class PrepGuiRenderer {
                         Material.CLOCK,
                         "Ready: " + readyCount + "/" + onlineCount,
                         "Countdown starts automatically when all are ready"));
-        inventory.setItem(
-                51,
-                createInfoItem(
-                        Material.RECOVERY_COMPASS,
-                        "Regenerate World",
-                        previewEnabled
-                                ? "Create a new run world and refresh pedestal preview"
-                                : "Create a new run world"));
     }
 
     /**
@@ -256,7 +241,7 @@ public final class PrepGuiRenderer {
                         "Previous Page",
                         safePage > 0 ? "Go to newer runs" : "You are on the first page"));
         inventory.setItem(
-                51,
+                52,
                 createInfoItem(
                         Material.ARROW,
                         "Next Page",

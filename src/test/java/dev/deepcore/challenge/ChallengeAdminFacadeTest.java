@@ -11,8 +11,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import dev.deepcore.DeepCorePlugin;
+import dev.deepcore.challenge.training.TrainingManager;
 import dev.deepcore.challenge.world.WorldResetManager;
 import dev.deepcore.logging.DeepCoreLogger;
+import org.bukkit.World;
 import org.bukkit.command.CommandSender;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,6 +25,7 @@ class ChallengeAdminFacadeTest {
     private ChallengeManager challengeManager;
     private ChallengeSessionManager sessionManager;
     private WorldResetManager worldResetManager;
+    private TrainingManager trainingManager;
     private DeepCoreLogger logger;
     private ChallengeAdminFacade facade;
 
@@ -32,8 +35,10 @@ class ChallengeAdminFacadeTest {
         challengeManager = mock(ChallengeManager.class);
         sessionManager = mock(ChallengeSessionManager.class);
         worldResetManager = mock(WorldResetManager.class);
+        trainingManager = mock(TrainingManager.class);
         logger = mock(DeepCoreLogger.class);
-        facade = new ChallengeAdminFacade(plugin, challengeManager, sessionManager, worldResetManager, logger);
+        facade = new ChallengeAdminFacade(
+                plugin, challengeManager, sessionManager, worldResetManager, trainingManager, logger);
     }
 
     @Test
@@ -85,6 +90,7 @@ class ChallengeAdminFacadeTest {
 
         verify(plugin, times(2)).reloadConfig();
         verify(logger, times(2)).loadFromConfig();
+        verify(trainingManager, times(2)).reloadFromConfig();
         verify(challengeManager).loadFromConfig();
         verify(worldResetManager).ensureThreeWorldsLoaded();
         verify(sessionManager).refreshLobbyPreview();
@@ -101,5 +107,27 @@ class ChallengeAdminFacadeTest {
 
         facade.resetWorlds(sender);
         verify(worldResetManager).resetThreeWorlds(sender);
+    }
+
+    @Test
+    void selectLobbyWorld_delegatesToWorldResetManager() {
+        World world = mock(World.class);
+        when(world.getName()).thenReturn("deepcore_lobby_nether");
+        when(worldResetManager.selectLobbyWorld("nether")).thenReturn(world);
+
+        String selected = facade.selectLobbyWorld("nether");
+
+        org.junit.jupiter.api.Assertions.assertEquals("deepcore_lobby_nether", selected);
+        verify(worldResetManager).selectLobbyWorld("nether");
+    }
+
+    @Test
+    void teleportOnlinePlayersToActiveLobby_delegatesToWorldResetManager() {
+        when(worldResetManager.teleportOnlinePlayersToActiveLobby()).thenReturn(4);
+
+        int teleported = facade.teleportOnlinePlayersToActiveLobby();
+
+        org.junit.jupiter.api.Assertions.assertEquals(4, teleported);
+        verify(worldResetManager).teleportOnlinePlayersToActiveLobby();
     }
 }

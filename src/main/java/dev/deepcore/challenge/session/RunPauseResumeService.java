@@ -100,7 +100,7 @@ public final class RunPauseResumeService {
         snapshotParticipantsForPause();
         transitionToPausedPhase();
         if (announceBroadcast) {
-            log.info("Challenge paused by " + sender.getName() + ".");
+            log.info("Run paused by " + sender.getName());
         }
         return true;
     }
@@ -120,7 +120,7 @@ public final class RunPauseResumeService {
         restoreParticipantSnapshotsAfterResume();
         restartRunTasksAfterResume();
 
-        log.info("Challenge resumed by " + sender.getName() + ".");
+        log.info("Run resumed by " + sender.getName());
         return true;
     }
 

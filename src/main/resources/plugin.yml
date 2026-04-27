@@ -8,13 +8,20 @@ description: Speedrun challenge toggles for Paper servers.
 commands:
   challenge:
     description: Manage speedrun challenge modes.
-    usage: "/challenge <status|list|enable|disable|mode|component|end|stop|pause|resume|reset|resetworld|reload|logs>"
+    usage: "/challenge <status|train|list|enable|disable|mode|component|end|stop|pause|resume|reset|resetworld|lobby|reload|logs>"
     permission: deepcore.challenge
     aliases: [ch]
+  lobby:
+    description: Return to the DeepCore lobby from the training gym.
+    usage: "/lobby"
+    permission: deepcore.challenge
 
 permissions:
   deepcore.challenge:
-    description: Allows managing challenge modes.
+    description: Allows using challenge command base and training gym commands.
+    default: true
+  deepcore.challenge.admin:
+    description: Allows managing challenge enable/mode/component settings.
     default: op
   deepcore.challenge.reset:
     description: Allows resetting overworld, nether, and end via limbo.

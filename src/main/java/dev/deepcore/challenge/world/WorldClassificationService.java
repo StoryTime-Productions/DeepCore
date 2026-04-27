@@ -40,4 +40,32 @@ public final class WorldClassificationService {
                 || world.getName().equalsIgnoreCase(configuredLobbyOverworld)
                 || world.getName().equalsIgnoreCase(configuredLobbyNether);
     }
+
+    /**
+     * Returns whether the world is the configured training world.
+     *
+     * @param world world to classify
+     * @return true when this is the configured training world
+     */
+    public boolean isTrainingWorld(World world) {
+        return world != null && world.getName().equalsIgnoreCase(configView.trainingWorldName());
+    }
+
+    /**
+     * Returns whether prep borders should be suppressed in the given world.
+     *
+     * @param world world to classify
+     * @return true when prep borders should not be shown
+     */
+    public boolean isPrepBorderExemptWorld(World world) {
+        if (world == null) {
+            return false;
+        }
+
+        if (isLobbyOrLimboWorld(world)) {
+            return true;
+        }
+
+        return isTrainingWorld(world);
+    }
 }

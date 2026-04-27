@@ -244,6 +244,7 @@ public final class RunHealthCoordinatorService {
             maxHealthAttribute.setBaseValue(restored);
         }
         initialHalfHeartOriginalMaxHealth.remove(player.getUniqueId());
+        player.setHealth(maxHealthAttribute.getValue());
     }
 
     private void applyInitialHalfHeartMaxHealth(Player player) {

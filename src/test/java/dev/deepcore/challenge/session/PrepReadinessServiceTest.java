@@ -217,6 +217,6 @@ class PrepReadinessServiceTest {
         org.junit.jupiter.api.Assertions.assertEquals(SessionState.Phase.PREP, sessionState.getPhase());
         org.junit.jupiter.api.Assertions.assertTrue(participants.isEmpty());
         verify(prepCountdownService).cancel();
-        verify(log).info("Countdown canceled because all players left.");
+        verify(log).info("Countdown canceled - players left.");
     }
 }

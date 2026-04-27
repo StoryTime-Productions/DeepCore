@@ -41,7 +41,7 @@ public class RunRecordsService {
         try {
             openConnection();
             createTablesIfNotExist();
-            log.info("RunRecordsService initialized successfully.");
+            log.debug("RunRecordsService initialized successfully.");
         } catch (SQLException e) {
             log.error("Failed to initialize RunRecordsService: " + e.getMessage(), e);
         }
@@ -104,7 +104,7 @@ public class RunRecordsService {
             stmt.executeUpdate("DROP TABLE IF EXISTS run_records");
         }
         createRunRecordsTableIfMissing();
-        log.info("run_records table recreated with current schema.");
+        log.debug("run_records table recreated with current schema.");
     }
 
     /**
@@ -144,7 +144,7 @@ public class RunRecordsService {
             pstmt.setString(8, participantsCsv);
             pstmt.executeUpdate();
 
-            log.info(String.format(
+            log.debug(String.format(
                     "Recorded team speedrun: %.2fs (Overworld→Nether: %.2fs, Nether→Blaze Rods: %.2fs, Blaze Rods→End: %.2fs, Nether→End: %.2fs, End→Dragon: %.2fs)",
                     overallTimeMs / 1000.0,
                     overworldToNetherMs / 1000.0,
@@ -267,7 +267,7 @@ public class RunRecordsService {
         try {
             if (connection != null && !connection.isClosed()) {
                 connection.close();
-                log.info("RunRecordsService database connection closed.");
+                log.debug("RunRecordsService database connection closed.");
             }
         } catch (SQLException e) {
             log.error("Failed to close database connection: " + e.getMessage(), e);

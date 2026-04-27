@@ -267,7 +267,11 @@ public final class SessionPlayerLifecycleService {
         }
 
         if (sessionState.is(SessionState.Phase.PREP)) {
-            prepBookService.giveIfMissing(player);
+            if (worldClassificationService.isTrainingWorld(player.getWorld())) {
+                prepBookService.removeFromInventory(player);
+            } else {
+                prepBookService.giveIfMissing(player);
+            }
             Bukkit.getScheduler().runTask(plugin, refreshOpenPrepGuis);
             return;
         }
@@ -383,7 +387,7 @@ public final class SessionPlayerLifecycleService {
             sessionFailureService.handleHardcoreFailureIfNeeded();
         } else {
             recentlyDeadPlayers.add(playerId);
-            Bukkit.getScheduler().runTaskLater(plugin, sessionFailureService::handleAllPlayersDeadFailureIfNeeded, 1L);
+            sessionFailureService.handleAllPlayersDeadFailureIfNeeded();
         }
     }
 
@@ -462,6 +466,10 @@ public final class SessionPlayerLifecycleService {
                 challengeManager.isComponentEnabled(ChallengeComponent.HARDCORE),
                 eliminatedPlayers);
         playerLobbyStateService.applyLobbyInventoryLoadoutIfInLobbyWorld(event.getPlayer());
+
+        if (worldClassificationService.isTrainingWorld(event.getPlayer().getWorld())) {
+            prepBookService.removeFromInventory(event.getPlayer());
+        }
 
         if (!sessionState.is(SessionState.Phase.RUNNING)) {
             prepAreaService.applyBorder(

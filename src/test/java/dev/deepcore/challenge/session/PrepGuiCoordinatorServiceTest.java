@@ -117,7 +117,17 @@ class PrepGuiCoordinatorServiceTest {
                     return true;
                 })
                 .when(f.prepGuiFlowService)
-                .handleClick(eq(player), eq(47), eq(PrepGuiPage.CATEGORIES), any(), any(), any(), any(), any(), any());
+                .handleClick(
+                        eq(player),
+                        eq(47),
+                        eq(PrepGuiPage.CATEGORIES),
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        any());
 
         Inventory categoryInventory = mock(Inventory.class);
         Inventory historyInventory = mock(Inventory.class);
@@ -215,7 +225,7 @@ class PrepGuiCoordinatorServiceTest {
         f.service.handlePrepGuiClick(outOfRangeClick);
         verify(outOfRangeClick).setCancelled(true);
         verify(f.prepGuiFlowService, never())
-                .handleClick(eq(player), eq(99), any(), any(), any(), any(), any(), any(), any());
+                .handleClick(eq(player), eq(99), any(), any(), any(), any(), any(), any(), any(), any());
 
         InventoryClickEvent resetClick = mock(InventoryClickEvent.class);
         InventoryView resetView = mock(InventoryView.class);
@@ -235,7 +245,17 @@ class PrepGuiCoordinatorServiceTest {
                     return true;
                 })
                 .when(f.prepGuiFlowService)
-                .handleClick(eq(player), eq(47), eq(PrepGuiPage.CATEGORIES), any(), any(), any(), any(), any(), any());
+                .handleClick(
+                        eq(player),
+                        eq(47),
+                        eq(PrepGuiPage.CATEGORIES),
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        any());
 
         f.service.handlePrepGuiClick(resetClick);
         verify(f.log).sendWarn(player, "Preview destroy animation is already running.");

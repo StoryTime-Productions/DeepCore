@@ -186,7 +186,7 @@ public final class RunStartService {
         prepareParticipantsForRun();
         launchRunTasksAndSync();
 
-        log.info("DeepCore run started.");
+        log.info("Run started!");
     }
 
     private boolean validateRunStartPreconditions() {
@@ -198,7 +198,7 @@ public final class RunStartService {
         participants.clear();
         announceDiscoPreviewStartBlocked.run();
         prepAreaService.applyBordersToOnlinePlayers(
-                sessionState.is(SessionState.Phase.RUNNING), worldClassificationService::isLobbyOrLimboWorld);
+                sessionState.is(SessionState.Phase.RUNNING), worldClassificationService::isPrepBorderExemptWorld);
         Bukkit.getScheduler().runTask(plugin, refreshOpenPrepGuis);
         return false;
     }

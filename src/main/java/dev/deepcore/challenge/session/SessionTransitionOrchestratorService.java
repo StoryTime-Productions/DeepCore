@@ -198,10 +198,14 @@ public final class SessionTransitionOrchestratorService {
         previewOrchestratorService.removeLobbyBlockDisplayEntities();
         for (Player player : Bukkit.getOnlinePlayers()) {
             previewAnchorService.teleportToLobbyIfConfigured(player);
-            prepBookService.giveIfMissing(player);
+            if (!worldClassificationService.isTrainingWorld(player.getWorld())) {
+                prepBookService.giveIfMissing(player);
+            } else {
+                prepBookService.removeFromInventory(player);
+            }
         }
         prepAreaService.applyBordersToOnlinePlayers(
-                sessionState.is(SessionState.Phase.RUNNING), worldClassificationService::isLobbyOrLimboWorld);
+                sessionState.is(SessionState.Phase.RUNNING), worldClassificationService::isPrepBorderExemptWorld);
         previewOrchestratorService.removeLobbyBlockDisplayEntities();
         refreshLobbyPreview.run();
     }
@@ -267,11 +271,15 @@ public final class SessionTransitionOrchestratorService {
             }
             clearLobbySidebar.accept(player);
             runHealthCoordinatorService.restoreDefaultMaxHealth(player);
-            prepBookService.giveIfMissing(player);
+            if (!worldClassificationService.isTrainingWorld(player.getWorld())) {
+                prepBookService.giveIfMissing(player);
+            } else {
+                prepBookService.removeFromInventory(player);
+            }
         }
 
         prepAreaService.applyBordersToOnlinePlayers(
-                sessionState.is(SessionState.Phase.RUNNING), worldClassificationService::isLobbyOrLimboWorld);
+                sessionState.is(SessionState.Phase.RUNNING), worldClassificationService::isPrepBorderExemptWorld);
         refreshLobbyPreview.run();
         Bukkit.getScheduler().runTask(plugin, refreshOpenPrepGuis);
     }
@@ -289,7 +297,7 @@ public final class SessionTransitionOrchestratorService {
                 player.setGameMode(GameMode.SURVIVAL);
             }
         }
-        log.info("DeepCore is now back in prep mode.");
+        log.info("Waiting for players...");
     }
 
     /**
@@ -298,8 +306,11 @@ public final class SessionTransitionOrchestratorService {
      * @param player player who should receive prep book when in prep phase
      */
     public void ensurePrepBook(Player player) {
-        if (sessionState.is(SessionState.Phase.PREP)) {
+        if (sessionState.is(SessionState.Phase.PREP)
+                && !worldClassificationService.isTrainingWorld(player.getWorld())) {
             prepBookService.giveIfMissing(player);
+        } else if (worldClassificationService.isTrainingWorld(player.getWorld())) {
+            prepBookService.removeFromInventory(player);
         }
     }
 

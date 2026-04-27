@@ -68,3 +68,153 @@ logging:
   # player-levels:
   #   "b0f6f1f4-0000-4000-9000-abcdef123456": WARN
   player-levels: {}
+
+training:
+  enabled: true
+  world: deepcore_gym
+  lobby-spawn:
+    world: deepcore_gym
+    x: 0.5
+    y: 65.0
+    z: 0.5
+    yaw: 0.0
+    pitch: 0.0
+  respawn-spawn:
+    world: deepcore_gym
+    x: 0.5
+    y: 65.0
+    z: 0.5
+    yaw: 0.0
+    pitch: 0.0
+  craft:
+    beds:
+      min: 5
+      max: 8
+    eyes-of-ender:
+      min: 7
+      max: 9
+      sidebar-region:
+        world: deepcore_gym
+        min:
+          x: -17
+          y: 5
+          z: -90
+        max:
+          x: -1
+          y: 27
+          z: -72
+      sidebar-region:
+        world: deepcore_gym
+        min:
+          x: 6
+          y: 58
+          z: -30
+        max:
+          x: 30
+          y: 90
+          z: -6
+      sidebar-region:
+        world: deepcore_gym
+        min:
+          x: -30
+          y: 58
+          z: 6
+        max:
+          x: -6
+          y: 90
+          z: 30
+      sidebar-region:
+        world: deepcore_gym
+        min:
+          x: 6
+          y: 58
+          z: 6
+        max:
+          x: 30
+          y: 90
+          z: 30
+  challenges:
+    portal:
+      enabled: true
+      region:
+        world: deepcore_gym
+        min: { x: -30, y: 58, z: -30 }
+        max: { x: -6, y: 90, z: -6 }
+      start-button:
+        world: deepcore_gym
+        x: -18.0
+        y: 65.0
+        z: -31.0
+      start-location:
+        world: deepcore_gym
+        x: -18.5
+        y: 65.0
+        z: -18.5
+        yaw: 0.0
+        pitch: 0.0
+    craft:
+      enabled: true
+      region:
+        world: deepcore_gym
+        min: { x: 6, y: 58, z: -30 }
+        max: { x: 30, y: 90, z: -6 }
+      start-button:
+        world: deepcore_gym
+        x: 18.0
+        y: 65.0
+        z: -31.0
+      start-location:
+        world: deepcore_gym
+        x: 18.5
+        y: 65.0
+        z: -18.5
+        yaw: 180.0
+        pitch: 0.0
+    chest:
+      enabled: true
+      region:
+        world: deepcore_gym
+        min: { x: -30, y: 58, z: 6 }
+        max: { x: -6, y: 90, z: 30 }
+      start-button:
+        world: deepcore_gym
+        x: -18.0
+        y: 65.0
+        z: 5.0
+      start-location:
+        world: deepcore_gym
+        x: -18.5
+        y: 65.0
+        z: 18.5
+        yaw: 0.0
+        pitch: 0.0
+      hopper:
+        world: deepcore_gym
+        x: -18.0
+        y: 65.0
+        z: 18.0
+      min-chests: 4
+      max-chests: 8
+    bridge:
+      enabled: true
+      region:
+        world: deepcore_gym
+        min: { x: 6, y: 58, z: 6 }
+        max: { x: 30, y: 90, z: 30 }
+      start-button:
+        world: deepcore_gym
+        x: 18.0
+        y: 65.0
+        z: 5.0
+      start-location:
+        world: deepcore_gym
+        x: 18.5
+        y: 65.0
+        z: 18.5
+        yaw: 180.0
+        pitch: 0.0
+      completion-pressure-plate:
+        world: deepcore_gym
+        x: 24.0
+        y: 65.0
+        z: 24.0

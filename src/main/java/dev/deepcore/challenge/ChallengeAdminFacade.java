@@ -1,9 +1,11 @@
 package dev.deepcore.challenge;
 
 import dev.deepcore.DeepCorePlugin;
+import dev.deepcore.challenge.training.TrainingManager;
 import dev.deepcore.challenge.world.WorldResetManager;
 import dev.deepcore.logging.DeepCoreLogger;
 import java.util.Map;
+import org.bukkit.World;
 import org.bukkit.command.CommandSender;
 
 /**
@@ -15,6 +17,7 @@ public final class ChallengeAdminFacade {
     private final ChallengeManager challengeManager;
     private final ChallengeSessionManager challengeSessionManager;
     private final WorldResetManager worldResetManager;
+    private final TrainingManager trainingManager;
     private final DeepCoreLogger logger;
 
     /**
@@ -25,6 +28,7 @@ public final class ChallengeAdminFacade {
      * @param challengeManager        challenge configuration manager
      * @param challengeSessionManager session lifecycle coordinator
      * @param worldResetManager       world reset orchestration service
+     * @param trainingManager         training gym orchestration service
      * @param logger                  logger used for command and config operations
      */
     public ChallengeAdminFacade(
@@ -32,11 +36,13 @@ public final class ChallengeAdminFacade {
             ChallengeManager challengeManager,
             ChallengeSessionManager challengeSessionManager,
             WorldResetManager worldResetManager,
+            TrainingManager trainingManager,
             DeepCoreLogger logger) {
         this.plugin = plugin;
         this.challengeManager = challengeManager;
         this.challengeSessionManager = challengeSessionManager;
         this.worldResetManager = worldResetManager;
+        this.trainingManager = trainingManager;
         this.logger = logger;
     }
 
@@ -172,6 +178,26 @@ public final class ChallengeAdminFacade {
     }
 
     /**
+     * Selects the active lobby world by key.
+     *
+     * @param selector one of limbo, overworld, or nether
+     * @return selected lobby world name, or null when selection failed
+     */
+    public String selectLobbyWorld(String selector) {
+        World selected = worldResetManager.selectLobbyWorld(selector);
+        return selected == null ? null : selected.getName();
+    }
+
+    /**
+     * Teleports online players to the currently selected active lobby world.
+     *
+     * @return count of players teleported
+     */
+    public int teleportOnlinePlayersToActiveLobby() {
+        return worldResetManager.teleportOnlinePlayersToActiveLobby();
+    }
+
+    /**
      * Reloads config and applies settings immediately when in prep phase.
      *
      * @return true when reload and apply were fully completed
@@ -179,6 +205,7 @@ public final class ChallengeAdminFacade {
     public boolean reloadConfigAndApply() {
         plugin.reloadConfig();
         logger.loadFromConfig();
+        trainingManager.reloadFromConfig();
         if (!challengeSessionManager.isPrepPhase()) {
             return false;
         }

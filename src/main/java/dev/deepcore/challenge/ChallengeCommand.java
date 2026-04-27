@@ -1,6 +1,7 @@
 package dev.deepcore.challenge;
 
 import dev.deepcore.DeepCorePlugin;
+import dev.deepcore.challenge.training.TrainingManager;
 import dev.deepcore.challenge.world.WorldResetManager;
 import java.util.List;
 import org.bukkit.command.Command;
@@ -22,15 +23,23 @@ public final class ChallengeCommand implements CommandExecutor, TabCompleter {
      * @param challengeManager        challenge settings and component manager
      * @param challengeSessionManager challenge session orchestration manager
      * @param worldResetManager       world reset and world lifecycle manager
+     * @param trainingManager         training gym manager
      */
     public ChallengeCommand(
             DeepCorePlugin plugin,
             ChallengeManager challengeManager,
             ChallengeSessionManager challengeSessionManager,
-            WorldResetManager worldResetManager) {
+            WorldResetManager worldResetManager,
+            TrainingManager trainingManager) {
         ChallengeAdminFacade adminFacade = new ChallengeAdminFacade(
-                plugin, challengeManager, challengeSessionManager, worldResetManager, plugin.getDeepCoreLogger());
-        this.coreCommandHandler = new ChallengeCoreCommandHandler(adminFacade, plugin.getDeepCoreLogger());
+                plugin,
+                challengeManager,
+                challengeSessionManager,
+                worldResetManager,
+                trainingManager,
+                plugin.getDeepCoreLogger());
+        this.coreCommandHandler =
+                new ChallengeCoreCommandHandler(adminFacade, trainingManager, plugin.getDeepCoreLogger());
         this.logsCommandHandler = new ChallengeLogsCommandHandler(plugin.getDeepCoreLogger());
     }
 
