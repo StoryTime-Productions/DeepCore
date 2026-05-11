@@ -1,4 +1,4 @@
-package dev.deepcore.challenge;
+package dev.deepcore.challenge.command;
 
 import dev.deepcore.logging.DeepCoreLogLevel;
 import dev.deepcore.logging.DeepCoreLogger;

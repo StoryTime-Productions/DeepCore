@@ -175,6 +175,7 @@ class SessionTransitionOrchestratorServiceTest {
         state.setPhase(SessionState.Phase.RUNNING);
 
         JavaPlugin plugin = mock(JavaPlugin.class);
+        when(plugin.isEnabled()).thenReturn(true);
         DeepCoreLogger log = mock(DeepCoreLogger.class);
         ChallengeManager manager = mock(ChallengeManager.class);
         Set<UUID> ready = new HashSet<>();

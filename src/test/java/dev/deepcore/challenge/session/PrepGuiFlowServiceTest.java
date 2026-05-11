@@ -9,10 +9,10 @@ import static org.mockito.Mockito.when;
 
 import dev.deepcore.challenge.ChallengeComponent;
 import dev.deepcore.challenge.ChallengeManager;
-import dev.deepcore.challenge.PrepGuiPage;
+import dev.deepcore.challenge.records.RunRecord;
+import dev.deepcore.challenge.records.RunRecordsService;
+import dev.deepcore.challenge.ui.PrepGuiPage;
 import dev.deepcore.challenge.ui.PrepGuiRenderer;
-import dev.deepcore.records.RunRecord;
-import dev.deepcore.records.RunRecordsService;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -47,7 +47,7 @@ class PrepGuiFlowServiceTest {
 
         assertTrue(service.handleClick(
                 player,
-                47,
+                48,
                 PrepGuiPage.CATEGORIES,
                 history,
                 readyToggle,
@@ -55,12 +55,13 @@ class PrepGuiFlowServiceTest {
                 open,
                 close,
                 reset,
-                trainingTeleport));
+                trainingTeleport,
+                mock(Runnable.class)));
         verify(readyToggle).run();
 
         assertTrue(service.handleClick(
                 player,
-                51,
+                30,
                 PrepGuiPage.CATEGORIES,
                 history,
                 readyToggle,
@@ -68,12 +69,13 @@ class PrepGuiFlowServiceTest {
                 open,
                 close,
                 reset,
-                trainingTeleport));
+                trainingTeleport,
+                mock(Runnable.class)));
         verify(reset).run();
 
         assertTrue(service.handleClick(
                 player,
-                53,
+                32,
                 PrepGuiPage.CATEGORIES,
                 history,
                 readyToggle,
@@ -81,7 +83,8 @@ class PrepGuiFlowServiceTest {
                 open,
                 close,
                 reset,
-                trainingTeleport));
+                trainingTeleport,
+                mock(Runnable.class)));
         verify(trainingTeleport).run();
 
         assertTrue(service.handleClick(
@@ -94,7 +97,8 @@ class PrepGuiFlowServiceTest {
                 open,
                 close,
                 reset,
-                trainingTeleport));
+                trainingTeleport,
+                mock(Runnable.class)));
         verify(open).accept(PrepGuiPage.HEALTH);
 
         assertTrue(service.handleClick(
@@ -107,7 +111,8 @@ class PrepGuiFlowServiceTest {
                 open,
                 close,
                 reset,
-                trainingTeleport));
+                trainingTeleport,
+                mock(Runnable.class)));
         assertEquals(0, history.get(id));
         verify(open).accept(PrepGuiPage.RUN_HISTORY);
 
@@ -121,7 +126,8 @@ class PrepGuiFlowServiceTest {
                 open,
                 close,
                 reset,
-                trainingTeleport));
+                trainingTeleport,
+                mock(Runnable.class)));
         verify(open).accept(PrepGuiPage.INVENTORY);
 
         assertTrue(service.handleClick(
@@ -134,7 +140,8 @@ class PrepGuiFlowServiceTest {
                 open,
                 close,
                 reset,
-                trainingTeleport));
+                trainingTeleport,
+                mock(Runnable.class)));
         verify(close).run();
     }
 
@@ -166,7 +173,8 @@ class PrepGuiFlowServiceTest {
                 open,
                 close,
                 reset,
-                trainingTeleport));
+                trainingTeleport,
+                mock(Runnable.class)));
         verify(settings).toggleComponent(ChallengeComponent.KEEP_INVENTORY);
 
         assertTrue(service.handleClick(
@@ -179,7 +187,8 @@ class PrepGuiFlowServiceTest {
                 open,
                 close,
                 reset,
-                trainingTeleport));
+                trainingTeleport,
+                mock(Runnable.class)));
         verify(settings).toggleComponent(ChallengeComponent.SHARED_INVENTORY);
 
         assertTrue(service.handleClick(
@@ -192,26 +201,67 @@ class PrepGuiFlowServiceTest {
                 open,
                 close,
                 reset,
-                trainingTeleport));
+                trainingTeleport,
+                mock(Runnable.class)));
         verify(settings).toggleComponent(ChallengeComponent.DEGRADING_INVENTORY);
 
         when(manager.isComponentEnabled(ChallengeComponent.HEALTH_REFILL)).thenReturn(false);
         when(manager.isComponentEnabled(ChallengeComponent.INITIAL_HALF_HEART)).thenReturn(true);
 
         assertTrue(service.handleClick(
-                player, 20, PrepGuiPage.HEALTH, history, readyToggle, refresh, open, close, reset, trainingTeleport));
+                player,
+                20,
+                PrepGuiPage.HEALTH,
+                history,
+                readyToggle,
+                refresh,
+                open,
+                close,
+                reset,
+                trainingTeleport,
+                mock(Runnable.class)));
         verify(settings).setHealthRefill(true);
 
         assertTrue(service.handleClick(
-                player, 22, PrepGuiPage.HEALTH, history, readyToggle, refresh, open, close, reset, trainingTeleport));
+                player,
+                22,
+                PrepGuiPage.HEALTH,
+                history,
+                readyToggle,
+                refresh,
+                open,
+                close,
+                reset,
+                trainingTeleport,
+                mock(Runnable.class)));
         verify(settings).toggleComponent(ChallengeComponent.SHARED_HEALTH);
 
         assertTrue(service.handleClick(
-                player, 24, PrepGuiPage.HEALTH, history, readyToggle, refresh, open, close, reset, trainingTeleport));
+                player,
+                24,
+                PrepGuiPage.HEALTH,
+                history,
+                readyToggle,
+                refresh,
+                open,
+                close,
+                reset,
+                trainingTeleport,
+                mock(Runnable.class)));
         verify(settings).setInitialHalfHeart(false);
 
         assertTrue(service.handleClick(
-                player, 31, PrepGuiPage.HEALTH, history, readyToggle, refresh, open, close, reset, trainingTeleport));
+                player,
+                31,
+                PrepGuiPage.HEALTH,
+                history,
+                readyToggle,
+                refresh,
+                open,
+                close,
+                reset,
+                trainingTeleport,
+                mock(Runnable.class)));
         verify(settings).toggleComponent(ChallengeComponent.HARDCORE);
 
         verify(refresh, org.mockito.Mockito.atLeastOnce()).run();
@@ -252,7 +302,8 @@ class PrepGuiFlowServiceTest {
                 open,
                 close,
                 reset,
-                trainingTeleport));
+                trainingTeleport,
+                mock(Runnable.class)));
         assertEquals(0, history.get(id));
 
         when(renderer.hasRunHistoryNextPage(0, 2)).thenReturn(true);
@@ -266,7 +317,8 @@ class PrepGuiFlowServiceTest {
                 open,
                 close,
                 reset,
-                trainingTeleport));
+                trainingTeleport,
+                mock(Runnable.class)));
         assertEquals(1, history.get(id));
 
         verify(open, org.mockito.Mockito.atLeastOnce()).accept(PrepGuiPage.RUN_HISTORY);
@@ -285,6 +337,7 @@ class PrepGuiFlowServiceTest {
                 mock(Runnable.class),
                 mock(Runnable.class),
                 page -> {},
+                mock(Runnable.class),
                 mock(Runnable.class),
                 mock(Runnable.class),
                 mock(Runnable.class));

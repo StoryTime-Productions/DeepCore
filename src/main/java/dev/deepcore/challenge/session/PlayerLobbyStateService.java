@@ -42,8 +42,12 @@ public final class PlayerLobbyStateService {
             return;
         }
 
-        if (player.getGameMode() != GameMode.SURVIVAL) {
-            player.setGameMode(GameMode.SURVIVAL);
+        GameMode target = (worldClassificationService.isLobbyOrLimboWorld(player.getWorld())
+                        || worldClassificationService.isTrainingWorld(player.getWorld()))
+                ? GameMode.ADVENTURE
+                : GameMode.SURVIVAL;
+        if (player.getGameMode() != target) {
+            player.setGameMode(target);
         }
     }
 

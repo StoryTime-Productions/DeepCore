@@ -33,18 +33,39 @@ class PlayerLobbyStateServiceTest {
     }
 
     @Test
-    void enforceSurvivalOnWorldEntry_setsSurvivalForNonEliminatedOrNonHardcore() {
+    void enforceSurvivalOnWorldEntry_setsSurvivalInRunWorldForNonEliminatedPlayer() {
         WorldClassificationService worldClassificationService = mock(WorldClassificationService.class);
         PrepBookService prepBookService = mock(PrepBookService.class);
         PlayerLobbyStateService service = new PlayerLobbyStateService(worldClassificationService, prepBookService);
 
         Player player = mock(Player.class);
+        World world = mock(World.class);
         when(player.getUniqueId()).thenReturn(UUID.randomUUID());
         when(player.getGameMode()).thenReturn(GameMode.ADVENTURE);
+        when(player.getWorld()).thenReturn(world);
+        when(worldClassificationService.isLobbyOrLimboWorld(world)).thenReturn(false);
 
         service.enforceSurvivalOnWorldEntry(player, true, true, Set.of(UUID.randomUUID()));
 
         verify(player).setGameMode(GameMode.SURVIVAL);
+    }
+
+    @Test
+    void enforceSurvivalOnWorldEntry_setsAdventureInLobbyOrLimboWorld() {
+        WorldClassificationService worldClassificationService = mock(WorldClassificationService.class);
+        PrepBookService prepBookService = mock(PrepBookService.class);
+        PlayerLobbyStateService service = new PlayerLobbyStateService(worldClassificationService, prepBookService);
+
+        Player player = mock(Player.class);
+        World world = mock(World.class);
+        when(player.getUniqueId()).thenReturn(UUID.randomUUID());
+        when(player.getGameMode()).thenReturn(GameMode.SURVIVAL);
+        when(player.getWorld()).thenReturn(world);
+        when(worldClassificationService.isLobbyOrLimboWorld(world)).thenReturn(true);
+
+        service.enforceSurvivalOnWorldEntry(player, false, false, Set.of());
+
+        verify(player).setGameMode(GameMode.ADVENTURE);
     }
 
     @Test

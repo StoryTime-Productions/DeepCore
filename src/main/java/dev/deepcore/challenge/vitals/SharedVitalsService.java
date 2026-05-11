@@ -86,6 +86,10 @@ public final class SharedVitalsService {
                         continue;
                     }
 
+                    if (participant.getHealth() <= 0.0D) {
+                        continue;
+                    }
+
                     double previousHealth = participant.getHealth();
                     double maxHealth = participant
                             .getAttribute(resolveMaxHealthAttribute())
@@ -112,7 +116,7 @@ public final class SharedVitalsService {
         });
     }
 
-    /** Copies health from the first active participant to the entire team. */
+    /** Copies health from the first active participant to the entire team, including dead players. */
     public void syncSharedHealthFromFirstParticipant() {
         List<Player> onlineParticipants = playersForSharedVitals.get();
         for (Player participant : onlineParticipants) {
@@ -120,7 +124,27 @@ public final class SharedVitalsService {
                 continue;
             }
 
-            syncHealthAcrossParticipants(participant.getHealth());
+            if (participant.getHealth() <= 0.0D) {
+                continue;
+            }
+
+            double sourceHealth = participant.getHealth();
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                syncingHealth = true;
+                try {
+                    for (Player p : playersForSharedVitals.get()) {
+                        if (p.getGameMode() == GameMode.SPECTATOR) {
+                            continue;
+                        }
+                        double maxHealth =
+                                p.getAttribute(resolveMaxHealthAttribute()).getValue();
+                        double clamped = Math.max(0.0D, Math.min(maxHealth, sourceHealth));
+                        p.setHealth(clamped <= 0.0D ? 0.5D : clamped);
+                    }
+                } finally {
+                    syncingHealth = false;
+                }
+            });
             return;
         }
     }

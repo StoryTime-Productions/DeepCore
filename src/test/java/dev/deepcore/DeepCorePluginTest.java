@@ -82,7 +82,8 @@ class DeepCorePluginTest {
         ChallengeManager challengeManager = mock(ChallengeManager.class);
         dev.deepcore.challenge.ChallengeSessionManager sessionService =
                 mock(dev.deepcore.challenge.ChallengeSessionManager.class);
-        dev.deepcore.records.RunRecordsService recordsService = mock(dev.deepcore.records.RunRecordsService.class);
+        dev.deepcore.challenge.records.RunRecordsService recordsService =
+                mock(dev.deepcore.challenge.records.RunRecordsService.class);
         TrainingManager trainingManager = mock(TrainingManager.class);
 
         when(runtime.getChallengeManager()).thenReturn(challengeManager);
@@ -111,7 +112,8 @@ class DeepCorePluginTest {
         ChallengeManager challengeManager = mock(ChallengeManager.class);
         dev.deepcore.challenge.ChallengeSessionManager sessionService =
                 mock(dev.deepcore.challenge.ChallengeSessionManager.class);
-        dev.deepcore.records.RunRecordsService recordsService = mock(dev.deepcore.records.RunRecordsService.class);
+        dev.deepcore.challenge.records.RunRecordsService recordsService =
+                mock(dev.deepcore.challenge.records.RunRecordsService.class);
         TrainingManager trainingManager = mock(TrainingManager.class);
 
         when(runtime.getChallengeManager()).thenReturn(challengeManager);

@@ -91,8 +91,41 @@ public final class SharedInventorySyncService {
             return;
         }
 
-        pendingSharedInventorySourceId = source.getUniqueId();
-        scheduleSharedInventoryDrain();
+        if (!isRunningPhase.get()) {
+            return;
+        }
+
+        syncSharedInventoryFromSourceNow(source);
+    }
+
+    /**
+     * Flushes any queued shared-inventory sync immediately without deferring to
+     * next
+     * tick. This ensures inventory changes are synced instantly to other players.
+     */
+    public void flushPendingSharedInventorySync() {
+        if (!isSharedInventoryEnabled.getAsBoolean() || !isRunningPhase.get()) {
+            sharedInventorySyncQueued = false;
+            pendingSharedInventorySourceId = null;
+            return;
+        }
+
+        if (syncingInventory) {
+            return;
+        }
+
+        if (!sharedInventorySyncQueued) {
+            return;
+        }
+
+        sharedInventorySyncQueued = false;
+        Player syncSource = resolveSharedInventorySyncSource();
+        pendingSharedInventorySourceId = null;
+        if (syncSource == null) {
+            return;
+        }
+
+        syncInventoryFrom(syncSource);
     }
 
     /**
@@ -142,6 +175,15 @@ public final class SharedInventorySyncService {
         Bukkit.getScheduler().runTask(plugin, this::drainSharedInventoryQueue);
     }
 
+    private void scheduleSharedInventoryDrainImmediate() {
+        if (sharedInventorySyncQueued) {
+            return;
+        }
+
+        sharedInventorySyncQueued = true;
+        Bukkit.getScheduler().runTask(plugin, this::drainSharedInventoryQueueImmediate);
+    }
+
     private void drainSharedInventoryQueue() {
         if (!sharedInventorySyncQueued) {
             return;
@@ -155,6 +197,38 @@ public final class SharedInventorySyncService {
 
         if (syncingInventory) {
             Bukkit.getScheduler().runTaskLater(plugin, this::drainSharedInventoryQueue, 1L);
+            return;
+        }
+
+        sharedInventorySyncQueued = false;
+        Player syncSource = resolveSharedInventorySyncSource();
+        pendingSharedInventorySourceId = null;
+        if (syncSource == null) {
+            return;
+        }
+
+        syncInventoryFrom(syncSource);
+    }
+
+    /**
+     * Internal drain that retries immediately instead of deferring to next tick if
+     * a
+     * sync is in progress. Used for rapid inventory mutations within the same
+     * player
+     * inventory to ensure instant sync feedback.
+     */
+    private void drainSharedInventoryQueueImmediate() {
+        if (!sharedInventorySyncQueued) {
+            return;
+        }
+
+        if (!isSharedInventoryEnabled.getAsBoolean() || !isRunningPhase.get()) {
+            sharedInventorySyncQueued = false;
+            pendingSharedInventorySourceId = null;
+            return;
+        }
+
+        if (syncingInventory) {
             return;
         }
 
@@ -192,7 +266,22 @@ public final class SharedInventorySyncService {
      * @param sourcePlayerId player UUID that equipped the wearable
      */
     public void consumeWearableFromOtherParticipants(Material material, UUID sourcePlayerId) {
-        consumeWearableFromParticipants(material, sourcePlayerId, getOnlineActiveSharedInventoryParticipants());
+        consumeWearableFromOtherParticipants(material, sourcePlayerId, -1);
+    }
+
+    /**
+     * Removes one wearable item from others after a participant equips it,
+     * preferring the exact source slot so other participants' equipped armor is
+     * never touched.
+     *
+     * @param material            wearable material that was equipped
+     * @param sourcePlayerId      player UUID that equipped the wearable
+     * @param sourceInventorySlot slot index in the source player's inventory the
+     *                            wearable was taken from, or -1 if unknown
+     */
+    public void consumeWearableFromOtherParticipants(Material material, UUID sourcePlayerId, int sourceInventorySlot) {
+        consumeWearableFromParticipants(
+                material, sourcePlayerId, sourceInventorySlot, getOnlineActiveSharedInventoryParticipants());
     }
 
     /**
@@ -204,6 +293,11 @@ public final class SharedInventorySyncService {
      * @param participants   participant snapshot to apply removal against
      */
     public void consumeWearableFromParticipants(Material material, UUID sourcePlayerId, List<Player> participants) {
+        consumeWearableFromParticipants(material, sourcePlayerId, -1, participants);
+    }
+
+    private void consumeWearableFromParticipants(
+            Material material, UUID sourcePlayerId, int sourceInventorySlot, List<Player> participants) {
         if (participants == null || participants.isEmpty()) {
             return;
         }
@@ -214,14 +308,38 @@ public final class SharedInventorySyncService {
             }
 
             PlayerInventory inventory = participant.getInventory();
-            if (removeOneFromMainInventory(inventory, material)
-                    || removeOneFromOffhand(inventory, material)
-                    || removeOneFromArmorSlots(inventory, material)
-                    || removeOneFromFallbackNonArmorSlots(inventory, material)
-                    || removeOneFromCursor(participant, material)) {
+            boolean removed = false;
+
+            if (sourceInventorySlot >= 0 && !isArmorOrOffhandSlot(sourceInventorySlot)) {
+                removed = removeFromSlot(inventory, material, sourceInventorySlot);
+            }
+
+            if (!removed) {
+                removed = removeOneFromMainInventory(inventory, material)
+                        || removeOneFromOffhand(inventory, material)
+                        || removeOneFromFallbackNonArmorSlots(inventory, material)
+                        || removeOneFromCursor(participant, material);
+            }
+
+            if (removed) {
                 participant.updateInventory();
             }
         }
+    }
+
+    private boolean removeFromSlot(PlayerInventory inventory, Material material, int slot) {
+        ItemStack item = inventory.getItem(slot);
+        if (item == null || item.getType() != material) {
+            return false;
+        }
+        int amount = item.getAmount();
+        if (amount <= 1) {
+            inventory.setItem(slot, null);
+        } else {
+            item.setAmount(amount - 1);
+            inventory.setItem(slot, item);
+        }
+        return true;
     }
 
     private boolean removeOneFromArmorSlots(PlayerInventory inventory, Material material) {
@@ -279,22 +397,28 @@ public final class SharedInventorySyncService {
     /**
      * Schedules a wearable-equip synchronization pass for the source player.
      *
-     * @param source player whose newly equipped wearables should be detected
+     * @param source              player whose newly equipped wearables should be
+     *                            detected
+     * @param sourceInventorySlot inventory slot the wearable was taken from, or -1
+     *                            if unknown
      */
-    public void requestWearableEquipSync(Player source) {
+    public void requestWearableEquipSync(Player source, int sourceInventorySlot) {
         if (!isChallengeActive.test(source) || !isSharedInventoryEnabled.getAsBoolean()) {
             return;
         }
 
-        Bukkit.getScheduler().runTask(plugin, () -> detectNewlyEquippedWearables(source));
+        Bukkit.getScheduler().runTask(plugin, () -> detectNewlyEquippedWearables(source, sourceInventorySlot));
     }
 
     /**
      * Detects newly equipped wearables and mirrors consumption across participants.
      *
-     * @param player player whose equipped wearable set should be diffed
+     * @param player              player whose equipped wearable set should be
+     *                            diffed
+     * @param sourceInventorySlot inventory slot the wearable was taken from, or -1
+     *                            if unknown
      */
-    public void detectNewlyEquippedWearables(Player player) {
+    public void detectNewlyEquippedWearables(Player player, int sourceInventorySlot) {
         if (!isChallengeActive.test(player) || !isSharedInventoryEnabled.getAsBoolean()) {
             return;
         }
@@ -307,7 +431,7 @@ public final class SharedInventorySyncService {
             Material material = entry.getKey();
             int delta = entry.getValue() - previous.getOrDefault(material, 0);
             for (int i = 0; i < delta; i++) {
-                consumeWearableFromOtherParticipants(material, playerId);
+                consumeWearableFromOtherParticipants(material, playerId, sourceInventorySlot);
             }
         }
 
@@ -393,10 +517,33 @@ public final class SharedInventorySyncService {
             ItemStack[] storage = cloneContents(sourceInventory.getStorageContents());
             ItemStack[] extra = cloneContents(sourceInventory.getExtraContents());
 
+            UUID finalSourceId = source.getUniqueId();
             for (Player target : syncParticipants) {
+                if (target.getUniqueId().equals(finalSourceId)) {
+                    continue;
+                }
+
+                // If the target has an item on their cursor, snapshot it before syncing.
+                // updateInventory() sends a full resync packet that includes the cursor slot;
+                // without restoring it first, the packet clears the cursor and the held item
+                // vanishes. Restoring into the InventoryView before updateInventory() ensures
+                // Bukkit reads the correct cursor when building the outgoing packet.
+                InventoryView openView = target.getOpenInventory();
+                ItemStack cursorToRestore = null;
+                if (openView != null) {
+                    ItemStack cursor = openView.getCursor();
+                    if (cursor != null && !cursor.getType().isAir()) {
+                        cursorToRestore = cursor.clone();
+                    }
+                }
+
                 PlayerInventory targetInventory = target.getInventory();
                 targetInventory.setStorageContents(cloneContents(storage));
                 targetInventory.setExtraContents(cloneContents(extra));
+
+                if (cursorToRestore != null) {
+                    openView.setCursor(cursorToRestore);
+                }
 
                 if (isDegradingInventoryEnabled.getAsBoolean()) {
                     enforceInventorySlotCap.accept(target);

@@ -281,7 +281,9 @@ public final class SessionTransitionOrchestratorService {
         prepAreaService.applyBordersToOnlinePlayers(
                 sessionState.is(SessionState.Phase.RUNNING), worldClassificationService::isPrepBorderExemptWorld);
         refreshLobbyPreview.run();
-        Bukkit.getScheduler().runTask(plugin, refreshOpenPrepGuis);
+        if (plugin.isEnabled()) {
+            Bukkit.getScheduler().runTask(plugin, refreshOpenPrepGuis);
+        }
     }
 
     /** Ends an active challenge and transitions all players back to prep mode. */

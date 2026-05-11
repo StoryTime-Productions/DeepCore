@@ -6,6 +6,20 @@ public final class SessionTimingState {
     private long pausedStartedMillis;
     private long accumulatedPausedMillis;
 
+    /**
+     * Restores timing state from a persistent snapshot, advancing pause
+     * accumulation to account for lobby time since the run was saved.
+     *
+     * @param runStartMs         original run start timestamp in milliseconds
+     * @param accumulatedPausedMs total paused duration at the time the run was saved
+     * @param savedAtMs          wall-clock timestamp when the run was saved
+     */
+    public void restore(long runStartMs, long accumulatedPausedMs, long savedAtMs) {
+        this.runStartMillis = runStartMs;
+        this.accumulatedPausedMillis = accumulatedPausedMs + Math.max(0L, System.currentTimeMillis() - savedAtMs);
+        this.pausedStartedMillis = 0L;
+    }
+
     /** Resets all tracked timing values to zero. */
     public void reset() {
         runStartMillis = 0L;

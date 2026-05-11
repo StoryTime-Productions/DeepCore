@@ -52,6 +52,11 @@ public final class PrepSettingsService {
         applySharedVitalsIfEnabled.run();
     }
 
+    /** Advances difficulty to the next level in the cycle and persists the change. */
+    public void cycleDifficulty() {
+        challengeManager.setDifficulty(challengeManager.getDifficulty().next());
+    }
+
     /**
      * Sets initial-half-heart state and enforces mutual exclusion with health
      * refill.

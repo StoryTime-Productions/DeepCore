@@ -23,7 +23,7 @@ public final class SessionUiCoordinatorService {
     private final Supplier<List<Player>> onlineParticipantsSupplier;
     private final ParticipantsView participantsView;
     private final SidebarModelFactory sidebarModelFactory;
-    private final Supplier<dev.deepcore.records.RunRecordsService> recordsServiceSupplier;
+    private final Supplier<dev.deepcore.challenge.records.RunRecordsService> recordsServiceSupplier;
     private final IntSupplier readyCountSupplier;
     private final LobbySidebarCoordinatorService lobbySidebarCoordinatorService;
     private final LobbySidebarService lobbySidebarService;
@@ -56,7 +56,7 @@ public final class SessionUiCoordinatorService {
             Supplier<List<Player>> onlineParticipantsSupplier,
             ParticipantsView participantsView,
             SidebarModelFactory sidebarModelFactory,
-            Supplier<dev.deepcore.records.RunRecordsService> recordsServiceSupplier,
+            Supplier<dev.deepcore.challenge.records.RunRecordsService> recordsServiceSupplier,
             IntSupplier readyCountSupplier,
             LobbySidebarCoordinatorService lobbySidebarCoordinatorService,
             LobbySidebarService lobbySidebarService) {

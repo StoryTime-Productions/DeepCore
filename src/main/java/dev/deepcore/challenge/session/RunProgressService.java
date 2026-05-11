@@ -21,6 +21,33 @@ public final class RunProgressService {
     private boolean dragonKilled;
     private long dragonKilledMillis;
 
+    /**
+     * Restores run milestone state from a persistent snapshot.
+     *
+     * @param reachedNether            whether the Nether was reached before save
+     * @param netherMs                 timestamp when Nether was reached, or 0
+     * @param reachedBlazeObjective    whether the blaze objective was met before save
+     * @param blazeObjectiveMs         timestamp when blaze objective was met, or 0
+     * @param reachedEnd               whether the End was reached before save
+     * @param endMs                    timestamp when End was reached, or 0
+     */
+    public void restore(
+            boolean reachedNether,
+            long netherMs,
+            boolean reachedBlazeObjective,
+            long blazeObjectiveMs,
+            boolean reachedEnd,
+            long endMs) {
+        this.reachedNether = reachedNether;
+        this.netherReachedMillis = netherMs;
+        this.reachedBlazeObjective = reachedBlazeObjective;
+        this.blazeObjectiveReachedMillis = blazeObjectiveMs;
+        this.reachedEnd = reachedEnd;
+        this.endReachedMillis = endMs;
+        this.dragonKilled = false;
+        this.dragonKilledMillis = 0L;
+    }
+
     /** Resets all tracked run milestones. */
     public void reset() {
         reachedNether = false;
@@ -52,12 +79,48 @@ public final class RunProgressService {
     }
 
     /**
+     * Returns whether the blaze objective milestone has been reached.
+     *
+     * @return true when the blaze objective milestone has been recorded
+     */
+    public boolean hasReachedBlazeObjective() {
+        return reachedBlazeObjective;
+    }
+
+    /**
      * Returns whether the dragon kill milestone has been reached.
      *
      * @return true when the dragon kill milestone has been recorded
      */
     public boolean isDragonKilled() {
         return dragonKilled;
+    }
+
+    /**
+     * Returns the timestamp when the Nether milestone was first reached.
+     *
+     * @return epoch milliseconds when Nether was reached, or 0 if not reached
+     */
+    public long getNetherReachedMillis() {
+        return netherReachedMillis;
+    }
+
+    /**
+     * Returns the timestamp when the blaze objective milestone was first reached.
+     *
+     * @return epoch milliseconds when blaze objective was reached, or 0 if not reached
+     */
+    public long getBlazeObjectiveReachedMillis() {
+        return blazeObjectiveReachedMillis;
+    }
+
+    /**
+     * Returns the timestamp when the End milestone was first reached.
+     *
+     * @return epoch milliseconds when End was reached, or 0 if not reached
+     */
+    public long getEndReachedMillis() {
+        return endReachedMillis;
     }
 
     /**

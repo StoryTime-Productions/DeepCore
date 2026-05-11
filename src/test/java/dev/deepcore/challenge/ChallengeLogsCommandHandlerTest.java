@@ -8,6 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import dev.deepcore.challenge.command.ChallengeLogsCommandHandler;
 import dev.deepcore.logging.DeepCoreLogLevel;
 import dev.deepcore.logging.DeepCoreLogger;
 import java.util.List;

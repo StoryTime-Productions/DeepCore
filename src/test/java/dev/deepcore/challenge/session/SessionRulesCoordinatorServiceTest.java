@@ -5,6 +5,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import dev.deepcore.challenge.ChallengeComponent;
+import dev.deepcore.challenge.ChallengeDifficulty;
 import dev.deepcore.challenge.ChallengeManager;
 import dev.deepcore.challenge.world.WorldResetManager;
 import java.util.List;
@@ -22,6 +23,7 @@ class SessionRulesCoordinatorServiceTest {
         when(challengeManager.isEnabled()).thenReturn(true);
         when(challengeManager.isComponentEnabled(ChallengeComponent.KEEP_INVENTORY))
                 .thenReturn(true);
+        when(challengeManager.getDifficulty()).thenReturn(ChallengeDifficulty.NORMAL);
 
         WorldResetManager worldResetManager = mock(WorldResetManager.class);
         RunHealthCoordinatorService healthService = mock(RunHealthCoordinatorService.class);

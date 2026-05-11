@@ -90,6 +90,10 @@ public final class SessionFailureService {
             return;
         }
 
+        if (challengeManager.isComponentEnabled(ChallengeComponent.SHARED_HEALTH)) {
+            return;
+        }
+
         if (participants.isEmpty() || recentlyDeadPlayers.isEmpty()) {
             return;
         }

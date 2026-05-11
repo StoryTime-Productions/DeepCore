@@ -266,6 +266,41 @@ class SharedVitalsServiceTest {
     }
 
     @Test
+    void syncHealthAcrossParticipants_skipsDeadPlayersAsRecipients() {
+        JavaPlugin plugin = mock(JavaPlugin.class);
+        Player alive = mock(Player.class);
+        Player dead = mock(Player.class);
+
+        when(alive.getGameMode()).thenReturn(GameMode.SURVIVAL);
+        when(dead.getGameMode()).thenReturn(GameMode.SURVIVAL);
+        when(alive.getHealth()).thenReturn(10.0D);
+        when(dead.getHealth()).thenReturn(0.0D);
+
+        org.bukkit.attribute.AttributeInstance aliveAttr = mock(org.bukkit.attribute.AttributeInstance.class);
+        when(alive.getAttribute(maxHealthAttribute())).thenReturn(aliveAttr);
+        when(aliveAttr.getValue()).thenReturn(20.0D);
+
+        SharedVitalsService service = new SharedVitalsService(plugin, () -> List.of(alive, dead));
+        BukkitScheduler scheduler = mock(BukkitScheduler.class);
+
+        try (MockedStatic<Bukkit> bukkit = org.mockito.Mockito.mockStatic(Bukkit.class)) {
+            bukkit.when(Bukkit::getScheduler).thenReturn(scheduler);
+            doAnswer(invocation -> {
+                        Runnable task = invocation.getArgument(1);
+                        task.run();
+                        return null;
+                    })
+                    .when(scheduler)
+                    .runTask(eq(plugin), any(Runnable.class));
+
+            service.syncHealthAcrossParticipants(15.0D);
+        }
+
+        verify(alive).setHealth(15.0D);
+        verify(dead, never()).setHealth(any(Double.class));
+    }
+
+    @Test
     void syncHealthAcrossParticipants_clampsHealthAndSkipsSpectators() {
         JavaPlugin plugin = mock(JavaPlugin.class);
         Player p1 = mock(Player.class);
@@ -359,6 +394,44 @@ class SharedVitalsServiceTest {
                         1.0F,
                         1.0F);
         verify(source, never()).playHurtAnimation(any(Float.class));
+    }
+
+    @Test
+    void syncSharedHealthFromFirstParticipant_skipsDeadPlayersAsSource() {
+        JavaPlugin plugin = mock(JavaPlugin.class);
+        Player dead = mock(Player.class);
+        Player alive = mock(Player.class);
+
+        when(dead.getGameMode()).thenReturn(GameMode.SURVIVAL);
+        when(alive.getGameMode()).thenReturn(GameMode.SURVIVAL);
+        when(dead.getHealth()).thenReturn(0.0D);
+        when(alive.getHealth()).thenReturn(15.0D);
+
+        org.bukkit.attribute.AttributeInstance deadAttr = mock(org.bukkit.attribute.AttributeInstance.class);
+        org.bukkit.attribute.AttributeInstance aliveAttr = mock(org.bukkit.attribute.AttributeInstance.class);
+        when(dead.getAttribute(maxHealthAttribute())).thenReturn(deadAttr);
+        when(alive.getAttribute(maxHealthAttribute())).thenReturn(aliveAttr);
+        when(deadAttr.getValue()).thenReturn(20.0D);
+        when(aliveAttr.getValue()).thenReturn(20.0D);
+
+        SharedVitalsService service = new SharedVitalsService(plugin, () -> List.of(dead, alive));
+        BukkitScheduler scheduler = mock(BukkitScheduler.class);
+
+        try (MockedStatic<Bukkit> bukkit = org.mockito.Mockito.mockStatic(Bukkit.class)) {
+            bukkit.when(Bukkit::getScheduler).thenReturn(scheduler);
+            doAnswer(invocation -> {
+                        Runnable task = invocation.getArgument(1);
+                        task.run();
+                        return null;
+                    })
+                    .when(scheduler)
+                    .runTask(eq(plugin), any(Runnable.class));
+
+            service.syncSharedHealthFromFirstParticipant();
+        }
+
+        verify(dead).setHealth(15.0D);
+        verify(alive).setHealth(15.0D);
     }
 
     @Test

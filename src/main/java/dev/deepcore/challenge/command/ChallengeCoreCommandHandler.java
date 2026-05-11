@@ -1,5 +1,7 @@
-package dev.deepcore.challenge;
+package dev.deepcore.challenge.command;
 
+import dev.deepcore.challenge.ChallengeComponent;
+import dev.deepcore.challenge.ChallengeMode;
 import dev.deepcore.challenge.training.TrainingManager;
 import dev.deepcore.logging.DeepCoreLogger;
 import java.util.ArrayList;
@@ -10,6 +12,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import org.bukkit.ChatColor;
 import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Player;
 
 /**
  * Handles non-logs /challenge subcommands and tab completion.
@@ -174,6 +177,36 @@ public final class ChallengeCoreCommandHandler {
                 }
                 return true;
             }
+            case "saverun" -> {
+                if (!(sender instanceof Player player)) {
+                    sendInfo(sender, ChatColor.RED + "Only players can vote to save a run.");
+                    return true;
+                }
+
+                if (!adminFacade.isRunningPhase()) {
+                    sendInfo(sender, ChatColor.YELLOW + "Challenge is not currently running.");
+                    return true;
+                }
+
+                adminFacade.castSaveVote(player);
+                return true;
+            }
+            case "restore" -> {
+                if (!sender.hasPermission("deepcore.challenge.admin")) {
+                    sendInfo(sender, ChatColor.RED + "You do not have permission to restore saved runs.");
+                    return true;
+                }
+
+                if (!adminFacade.isPrepPhase()) {
+                    sendInfo(sender, ChatColor.YELLOW + "Can only restore a saved run during prep phase.");
+                    return true;
+                }
+
+                if (!adminFacade.restoreSavedRun(sender)) {
+                    sendInfo(sender, ChatColor.RED + "Failed to restore saved run.");
+                }
+                return true;
+            }
             case "reset", "resetworld" -> {
                 if (!sender.hasPermission("deepcore.challenge.reset")) {
                     sendInfo(sender, ChatColor.RED + "You do not have permission to reset worlds.");
@@ -229,7 +262,7 @@ public final class ChallengeCoreCommandHandler {
                 sendInfo(
                         sender,
                         ChatColor.RED
-                                + "Unknown subcommand. Use /challenge <status|train|list|enable|disable|mode|component|end|stop|pause|resume|reset|resetworld|lobby|reload|logs>.");
+                                + "Unknown subcommand. Use /challenge <status|train|list|enable|disable|mode|component|end|stop|pause|resume|saverun|restore|reset|resetworld|lobby|reload|logs>.");
                 return true;
             }
         }
@@ -257,6 +290,8 @@ public final class ChallengeCoreCommandHandler {
                             "stop",
                             "pause",
                             "resume",
+                            "saverun",
+                            "restore",
                             "reset",
                             "resetworld",
                             "lobby",

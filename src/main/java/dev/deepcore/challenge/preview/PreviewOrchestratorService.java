@@ -85,6 +85,9 @@ public final class PreviewOrchestratorService {
         if (previewState.previewDestroying) {
             return;
         }
+        if (!plugin.isEnabled()) {
+            return;
+        }
         Bukkit.getScheduler().runTask(plugin, this::rebuildLobbyPreview);
     }
 

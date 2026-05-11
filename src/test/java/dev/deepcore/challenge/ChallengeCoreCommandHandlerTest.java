@@ -9,6 +9,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import dev.deepcore.challenge.command.ChallengeAdminFacade;
+import dev.deepcore.challenge.command.ChallengeCoreCommandHandler;
 import dev.deepcore.challenge.training.TrainingManager;
 import dev.deepcore.logging.DeepCoreLogger;
 import java.util.EnumMap;
@@ -246,6 +248,41 @@ class ChallengeCoreCommandHandlerTest {
 
         verify(logger).sendInfo(any(CommandSender.class), contains("Available challenge modes"));
         verify(logger).sendInfo(any(CommandSender.class), contains("Usage: /challenge mode"));
+    }
+
+    @Test
+    void handle_saverun_restore_successAndFailurePaths() {
+        // Player saverun checks
+        org.bukkit.entity.Player player = mock(org.bukkit.entity.Player.class);
+        when(adminFacade.isRunningPhase()).thenReturn(true);
+        assertTrue(handler.handle(player, new String[] {"saverun"}));
+        verify(adminFacade).castSaveVote(player);
+
+        when(adminFacade.isRunningPhase()).thenReturn(false);
+        assertTrue(handler.handle(player, new String[] {"saverun"}));
+        verify(logger).sendInfo(any(CommandSender.class), contains("not currently running"));
+
+        assertTrue(handler.handle(sender, new String[] {"saverun"}));
+        verify(logger).sendInfo(any(CommandSender.class), contains("Only players can vote"));
+
+        // Restore checks
+        when(sender.hasPermission("deepcore.challenge.admin")).thenReturn(true);
+        when(adminFacade.isPrepPhase()).thenReturn(true);
+        when(adminFacade.restoreSavedRun(sender)).thenReturn(true);
+        assertTrue(handler.handle(sender, new String[] {"restore"}));
+        verify(adminFacade).restoreSavedRun(sender);
+
+        when(adminFacade.restoreSavedRun(sender)).thenReturn(false);
+        assertTrue(handler.handle(sender, new String[] {"restore"}));
+        verify(logger).sendInfo(any(CommandSender.class), contains("Failed to restore saved run"));
+
+        when(adminFacade.isPrepPhase()).thenReturn(false);
+        assertTrue(handler.handle(sender, new String[] {"restore"}));
+        verify(logger).sendInfo(any(CommandSender.class), contains("Can only restore"));
+
+        when(sender.hasPermission("deepcore.challenge.admin")).thenReturn(false);
+        assertTrue(handler.handle(sender, new String[] {"restore"}));
+        verify(logger, atLeastOnce()).sendInfo(any(CommandSender.class), contains("do not have permission"));
     }
 
     @Test

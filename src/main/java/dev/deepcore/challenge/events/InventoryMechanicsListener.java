@@ -9,6 +9,7 @@ import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockMultiPlaceEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityPickupItemEvent;
+import org.bukkit.event.entity.EntityPlaceEvent;
 import org.bukkit.event.entity.EntityResurrectEvent;
 import org.bukkit.event.entity.ProjectileLaunchEvent;
 import org.bukkit.event.inventory.CraftItemEvent;
@@ -172,5 +173,10 @@ public final class InventoryMechanicsListener implements Listener {
     @EventHandler(ignoreCancelled = true)
     public void onBlockMultiPlace(BlockMultiPlaceEvent event) {
         inventoryMechanicsCoordinatorService.handleBlockMultiPlace(event);
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onEntityPlace(EntityPlaceEvent event) {
+        inventoryMechanicsCoordinatorService.handleEntityPlace(event);
     }
 }

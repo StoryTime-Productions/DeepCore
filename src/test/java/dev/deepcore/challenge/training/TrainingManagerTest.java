@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
@@ -146,7 +145,7 @@ class TrainingManagerTest {
     }
 
     @Test
-    void playerRespawnInTrainingWorld_usesConfiguredTrainingRespawnSpawn() {
+    void playerRespawnInTrainingWorld_doesNotOverrideBedRespawnWithoutActiveAttempt() {
         config.set("training.respawn-spawn.world", "deepcore_gym");
         config.set("training.respawn-spawn.x", 12.5D);
         config.set("training.respawn-spawn.y", 70.0D);
@@ -168,13 +167,7 @@ class TrainingManagerTest {
         when(respawnEvent.getPlayer()).thenReturn(player);
         manager.onPlayerRespawn(respawnEvent);
 
-        verify(respawnEvent)
-                .setRespawnLocation(argThat(location -> location != null
-                        && location.getWorld() != null
-                        && "deepcore_gym".equals(location.getWorld().getName())
-                        && Math.abs(location.getX() - 12.5D) < 0.001D
-                        && Math.abs(location.getY() - 70.0D) < 0.001D
-                        && Math.abs(location.getZ() - -8.5D) < 0.001D));
+        verify(respawnEvent, org.mockito.Mockito.never()).setRespawnLocation(any(Location.class));
     }
 
     @Test

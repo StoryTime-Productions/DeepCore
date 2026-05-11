@@ -122,6 +122,37 @@ class SessionFailureServiceTest {
     }
 
     @Test
+    void allPlayersDeadFailure_returnsEarlyWhenSharedHealthEnabled() {
+        SessionState state = new SessionState();
+        state.setPhase(SessionState.Phase.RUNNING);
+        ChallengeManager manager = mock(ChallengeManager.class);
+        when(manager.isEnabled()).thenReturn(true);
+        when(manager.isComponentEnabled(ChallengeComponent.HARDCORE)).thenReturn(false);
+        when(manager.isComponentEnabled(ChallengeComponent.SHARED_HEALTH)).thenReturn(true);
+
+        UUID participant = UUID.randomUUID();
+        ActionBarTickerService actionBar = mock(ActionBarTickerService.class);
+        Runnable clearActionBar = mock(Runnable.class);
+        DeepCoreLogger log = mock(DeepCoreLogger.class);
+
+        SessionFailureService service = new SessionFailureService(
+                state,
+                manager,
+                Set.of(participant),
+                Set.of(),
+                Set.of(participant),
+                actionBar,
+                clearActionBar,
+                () -> mock(WorldResetManager.class),
+                log);
+
+        service.handleAllPlayersDeadFailureIfNeeded();
+
+        verify(actionBar, never()).stop();
+        verify(clearActionBar, never()).run();
+    }
+
+    @Test
     void allPlayersDeadFailure_triggersResetFlowWhenConditionsMatch() {
         SessionState state = new SessionState();
         state.setPhase(SessionState.Phase.RUNNING);

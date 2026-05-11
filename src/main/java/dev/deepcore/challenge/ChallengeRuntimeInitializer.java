@@ -1,10 +1,12 @@
 package dev.deepcore.challenge;
 
 import dev.deepcore.DeepCorePlugin;
+import dev.deepcore.challenge.command.ChallengeCommand;
+import dev.deepcore.challenge.command.LobbyCommand;
+import dev.deepcore.challenge.records.RunRecordsService;
 import dev.deepcore.challenge.training.TrainingManager;
 import dev.deepcore.challenge.world.WorldResetManager;
 import dev.deepcore.logging.DeepCoreLogger;
-import dev.deepcore.records.RunRecordsService;
 import org.bukkit.command.PluginCommand;
 
 /**
@@ -30,7 +32,9 @@ public final class ChallengeRuntimeInitializer {
         worldResetManager.cleanupNonDefaultWorldsOnStartup();
         challengeSessionManager.setWorldResetManager(worldResetManager);
 
-        RunRecordsService recordsService = new RunRecordsService(plugin);
+        String dbFileName = plugin.getConfig().getString("records.db-name", "records.db");
+        logger.info("Run records database: " + dbFileName);
+        RunRecordsService recordsService = new RunRecordsService(plugin, dbFileName);
         recordsService.initialize();
         challengeSessionManager.setRecordsService(recordsService);
 

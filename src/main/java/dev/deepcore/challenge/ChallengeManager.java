@@ -6,17 +6,19 @@ import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
 /**
- * Stores and persists challenge enablement, mode, and component toggle state.
+ * Stores and persists challenge enablement, mode, component toggle state, and difficulty.
  */
 public final class ChallengeManager {
     private static final String ENABLED_PATH = "challenge.enabled";
     private static final String MODE_PATH = "challenge.mode";
+    private static final String DIFFICULTY_PATH = "challenge.difficulty";
     private static final String COMPONENTS_PATH = "challenge.components";
     private static final String LEGACY_UNLIMITED_DEATHS_PATH = "challenge.components.unlimited_deaths";
 
     private final JavaPlugin plugin;
     private boolean enabled;
     private ChallengeMode mode;
+    private ChallengeDifficulty difficulty;
     private final Map<ChallengeComponent, Boolean> componentToggles;
 
     /**
@@ -28,6 +30,7 @@ public final class ChallengeManager {
         this.plugin = plugin;
         this.enabled = false;
         this.mode = ChallengeMode.KEEP_INVENTORY_UNLIMITED_DEATHS;
+        this.difficulty = ChallengeDifficulty.NORMAL;
         this.componentToggles = new EnumMap<>(ChallengeComponent.class);
         applyModeDefaults();
     }
@@ -41,6 +44,9 @@ public final class ChallengeManager {
 
         String configuredMode = config.getString(MODE_PATH, ChallengeMode.KEEP_INVENTORY_UNLIMITED_DEATHS.key());
         mode = ChallengeMode.fromKey(configuredMode).orElse(ChallengeMode.KEEP_INVENTORY_UNLIMITED_DEATHS);
+
+        String configuredDifficulty = config.getString(DIFFICULTY_PATH, ChallengeDifficulty.NORMAL.key());
+        difficulty = ChallengeDifficulty.fromKey(configuredDifficulty).orElse(ChallengeDifficulty.NORMAL);
 
         applyModeDefaults();
         for (ChallengeComponent component : ChallengeComponent.values()) {
@@ -65,6 +71,7 @@ public final class ChallengeManager {
         FileConfiguration config = plugin.getConfig();
         config.set(ENABLED_PATH, enabled);
         config.set(MODE_PATH, mode.key());
+        config.set(DIFFICULTY_PATH, difficulty.key());
         for (ChallengeComponent component : ChallengeComponent.values()) {
             config.set(componentPath(component), componentToggles.get(component));
         }
@@ -77,6 +84,10 @@ public final class ChallengeManager {
 
     public ChallengeMode getMode() {
         return mode;
+    }
+
+    public ChallengeDifficulty getDifficulty() {
+        return difficulty;
     }
 
     public boolean isComponentEnabled(ChallengeComponent component) {
@@ -95,6 +106,11 @@ public final class ChallengeManager {
     public void setMode(ChallengeMode mode) {
         this.mode = mode;
         applyModeDefaults();
+        saveToConfig();
+    }
+
+    public void setDifficulty(ChallengeDifficulty difficulty) {
+        this.difficulty = difficulty;
         saveToConfig();
     }
 
