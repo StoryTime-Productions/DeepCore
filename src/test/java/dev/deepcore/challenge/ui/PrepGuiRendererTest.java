@@ -11,8 +11,9 @@ import static org.mockito.Mockito.when;
 import be.seeseemelk.mockbukkit.MockBukkit;
 import be.seeseemelk.mockbukkit.ServerMock;
 import dev.deepcore.challenge.ChallengeComponent;
+import dev.deepcore.challenge.ChallengeDifficulty;
 import dev.deepcore.challenge.ChallengeManager;
-import dev.deepcore.records.RunRecord;
+import dev.deepcore.challenge.records.RunRecord;
 import java.lang.reflect.Method;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -104,10 +105,15 @@ class PrepGuiRendererTest {
         when(challengeManager.isComponentEnabled(ChallengeComponent.HARDCORE)).thenReturn(true);
 
         Inventory categories = Bukkit.createInventory(null, 54, "categories");
-        renderer.populateCategoriesPage(categories, true, 2, 3, true);
-        assertEquals(Material.EMERALD_BLOCK, categories.getItem(47).getType());
-        assertTrue(categories.getItem(51).getItemMeta().getLore().get(0).contains("refresh pedestal preview"));
-        assertEquals(Material.ENDER_PEARL, categories.getItem(53).getType());
+        renderer.populateCategoriesPage(categories, true, 2, 3, true, ChallengeDifficulty.NORMAL, false);
+        assertEquals(Material.EMERALD_BLOCK, categories.getItem(48).getType());
+        assertEquals(Material.RECOVERY_COMPASS, categories.getItem(30).getType());
+        assertTrue(categories.getItem(30).getItemMeta().getLore().get(0).contains("refresh pedestal preview"));
+        assertEquals(Material.ENDER_PEARL, categories.getItem(32).getType());
+
+        Inventory categoriesLocked = Bukkit.createInventory(null, 54, "categories-locked");
+        renderer.populateCategoriesPage(categoriesLocked, true, 2, 3, true, ChallengeDifficulty.NORMAL, true);
+        assertEquals(Material.BARRIER, categoriesLocked.getItem(30).getType());
 
         Inventory inventoryPage = Bukkit.createInventory(null, 54, "inventory");
         renderer.populateInventoryPage(inventoryPage, challengeManager, false, 1, 3, false);
@@ -130,7 +136,9 @@ class PrepGuiRendererTest {
                         3_000L,
                         4_000L,
                         5_000L,
-                        "A,B"))
+                        "A,B",
+                        "",
+                        ""))
                 .toList();
         DateTimeFormatter dateFormatter = DateTimeFormatter.ISO_INSTANT.withZone(ZoneOffset.UTC);
         LongFunction<String> durationFormatter = millis -> millis + "ms";

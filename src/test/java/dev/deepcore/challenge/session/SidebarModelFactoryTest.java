@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import dev.deepcore.records.RunRecordsService;
+import dev.deepcore.challenge.records.RunRecordsService;
 import org.junit.jupiter.api.Test;
 
 class SidebarModelFactoryTest {

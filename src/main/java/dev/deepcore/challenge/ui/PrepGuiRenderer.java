@@ -1,8 +1,9 @@
 package dev.deepcore.challenge.ui;
 
 import dev.deepcore.challenge.ChallengeComponent;
+import dev.deepcore.challenge.ChallengeDifficulty;
 import dev.deepcore.challenge.ChallengeManager;
-import dev.deepcore.records.RunRecord;
+import dev.deepcore.challenge.records.RunRecord;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -47,9 +48,17 @@ public final class PrepGuiRenderer {
      * @param readyCount     number of ready participants
      * @param onlineCount    number of online participants
      * @param previewEnabled whether world preview mechanics are enabled
+     * @param difficulty     currently selected challenge difficulty
+     * @param savedRunExists whether a persistent saved run is available to restore
      */
     public void populateCategoriesPage(
-            Inventory inventory, boolean ready, int readyCount, int onlineCount, boolean previewEnabled) {
+            Inventory inventory,
+            boolean ready,
+            int readyCount,
+            int onlineCount,
+            boolean previewEnabled,
+            ChallengeDifficulty difficulty,
+            boolean savedRunExists) {
         inventory.setItem(4, createInfoItem(Material.NETHER_STAR, "Mechanic Categories", "Select a category"));
         inventory.setItem(
                 20, createInfoItem(Material.CHEST, "Inventory Mechanics", "Open inventory-related mechanics"));
@@ -60,23 +69,32 @@ public final class PrepGuiRenderer {
                         "Completed Runs",
                         "View successful runs with date, participants, and split times"));
         inventory.setItem(24, createInfoItem(Material.GOLDEN_APPLE, "Health Mechanics", "Open health mechanics"));
-        inventory.setItem(45, createInfoItem(Material.BARRIER, "Close", "Close this menu"));
-        inventory.setItem(47, createToggleItem("Ready", ready, "Each online player must ready up"));
+        if (savedRunExists) {
+            inventory.setItem(30, createLockedItem("Regenerate World", "Clear the saved run before regenerating"));
+        } else {
+            inventory.setItem(
+                    30,
+                    createInfoItem(
+                            Material.RECOVERY_COMPASS,
+                            "Regenerate World",
+                            previewEnabled
+                                    ? "Create a new run world and refresh pedestal preview"
+                                    : "Create a new run world"));
+        }
+        inventory.setItem(31, createDifficultyItem(difficulty));
+        inventory.setItem(32, createInfoItem(Material.ENDER_PEARL, "Training World", "Teleport to the training gym"));
+        if (savedRunExists) {
+            inventory.setItem(
+                    33,
+                    createInfoItem(Material.RESPAWN_ANCHOR, "Restore Saved Run", "Resume a previously saved speedrun"));
+        }
+        inventory.setItem(48, createToggleItem("Ready", ready, "Each online player must ready up"));
         inventory.setItem(
-                49,
+                50,
                 createInfoItem(
                         Material.CLOCK,
                         "Ready: " + readyCount + "/" + onlineCount,
                         "Countdown starts automatically when all are ready"));
-        inventory.setItem(
-                51,
-                createInfoItem(
-                        Material.RECOVERY_COMPASS,
-                        "Regenerate World",
-                        previewEnabled
-                                ? "Create a new run world and refresh pedestal preview"
-                                : "Create a new run world"));
-        inventory.setItem(53, createInfoItem(Material.ENDER_PEARL, "Training World", "Teleport to the training gym"));
     }
 
     /**
@@ -291,9 +309,31 @@ public final class PrepGuiRenderer {
                 + " - Nether to End");
         lore.add(ChatColor.AQUA + durationFormatter.apply(record.getEndToDragonMs()) + ChatColor.GRAY
                 + " - End to Dragon");
+        lore.add(ChatColor.DARK_GRAY + " ");
+        lore.add(ChatColor.GOLD + "Difficulty: " + ChatColor.WHITE + formatDifficulty(record.getDifficulty()));
+        lore.add(ChatColor.GOLD + "Mechanics");
+        List<String> componentKeys = record.getComponentKeys();
+        if (componentKeys.isEmpty()) {
+            lore.add(ChatColor.GRAY + "Standard (no modifiers)");
+        } else {
+            for (String key : componentKeys) {
+                ChallengeComponent component = ChallengeComponent.fromKey(key).orElse(null);
+                String label = component != null ? component.displayName() : key;
+                lore.add(ChatColor.GREEN + "• " + ChatColor.WHITE + label);
+            }
+        }
         meta.setLore(lore);
         item.setItemMeta(meta);
         return item;
+    }
+
+    private String formatDifficulty(String difficultyKey) {
+        if (difficultyKey == null || difficultyKey.isBlank()) {
+            return ChallengeDifficulty.NORMAL.displayName();
+        }
+        return ChallengeDifficulty.fromKey(difficultyKey)
+                .map(ChallengeDifficulty::displayName)
+                .orElse(difficultyKey);
     }
 
     private String formatParticipantNames(List<String> names) {
@@ -345,6 +385,36 @@ public final class PrepGuiRenderer {
             lore.add(ChatColor.DARK_AQUA + exclusivity);
             lore.add(ChatColor.DARK_GRAY + "Click to toggle");
             meta.setLore(lore);
+            meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
+
+    private ItemStack createDifficultyItem(ChallengeDifficulty difficulty) {
+        Material material =
+                switch (difficulty) {
+                    case EASY -> Material.LIME_DYE;
+                    case NORMAL -> Material.YELLOW_DYE;
+                    case HARD -> Material.RED_DYE;
+                };
+        ItemStack item = new ItemStack(material);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName(ChatColor.YELLOW + "Difficulty: " + ChatColor.WHITE + difficulty.displayName());
+            meta.setLore(List.of(ChatColor.GRAY + "Click to cycle difficulty"));
+            meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
+
+    private ItemStack createLockedItem(String name, String reason) {
+        ItemStack item = new ItemStack(Material.BARRIER);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName(ChatColor.RED + name);
+            meta.setLore(List.of(ChatColor.DARK_RED + reason));
             meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
             item.setItemMeta(meta);
         }

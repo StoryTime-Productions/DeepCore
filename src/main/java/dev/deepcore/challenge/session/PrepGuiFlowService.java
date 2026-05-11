@@ -2,9 +2,9 @@ package dev.deepcore.challenge.session;
 
 import dev.deepcore.challenge.ChallengeComponent;
 import dev.deepcore.challenge.ChallengeManager;
-import dev.deepcore.challenge.PrepGuiPage;
+import dev.deepcore.challenge.records.RunRecordsService;
+import dev.deepcore.challenge.ui.PrepGuiPage;
 import dev.deepcore.challenge.ui.PrepGuiRenderer;
-import dev.deepcore.records.RunRecordsService;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -54,6 +54,7 @@ public final class PrepGuiFlowService {
      * @param closeInventory        action to close the player's inventory
      * @param resetWorldFlow        action to trigger world regeneration flow
      * @param trainingTeleportFlow  action to teleport player to training world
+     * @param restoreSavedRunFlow   action to restore a persistent saved run
      * @return true when the click was handled by prep GUI flow logic
      */
     public boolean handleClick(
@@ -66,18 +67,24 @@ public final class PrepGuiFlowService {
             Consumer<PrepGuiPage> openPrepGui,
             Runnable closeInventory,
             Runnable resetWorldFlow,
-            Runnable trainingTeleportFlow) {
-        if (slot == 47 && page != PrepGuiPage.RUN_HISTORY) {
+            Runnable trainingTeleportFlow,
+            Runnable restoreSavedRunFlow) {
+        if (slot == 47 && page != PrepGuiPage.CATEGORIES && page != PrepGuiPage.RUN_HISTORY) {
             readyToggleFlow.run();
             return true;
         }
 
-        if (page == PrepGuiPage.CATEGORIES && slot == 51) {
+        if (slot == 48 && page == PrepGuiPage.CATEGORIES) {
+            readyToggleFlow.run();
+            return true;
+        }
+
+        if (page == PrepGuiPage.CATEGORIES && slot == 30) {
             resetWorldFlow.run();
             return true;
         }
 
-        if (page == PrepGuiPage.CATEGORIES && slot == 53) {
+        if (page == PrepGuiPage.CATEGORIES && slot == 32) {
             trainingTeleportFlow.run();
             return true;
         }
@@ -105,6 +112,17 @@ public final class PrepGuiFlowService {
 
         if (slot == 20 && page == PrepGuiPage.CATEGORIES) {
             openPrepGui.accept(PrepGuiPage.INVENTORY);
+            return true;
+        }
+
+        if (slot == 31 && page == PrepGuiPage.CATEGORIES) {
+            prepSettingsService.cycleDifficulty();
+            refreshOpenPrepGuis.run();
+            return true;
+        }
+
+        if (slot == 33 && page == PrepGuiPage.CATEGORIES) {
+            restoreSavedRunFlow.run();
             return true;
         }
 

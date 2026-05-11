@@ -297,6 +297,7 @@ class PreviewOrchestratorServiceBehaviorTest {
     @Test
     void refreshLobbyPreview_schedulesWorkWhenNotDestroying() {
         JavaPlugin plugin = mock(JavaPlugin.class);
+        when(plugin.isEnabled()).thenReturn(true);
         PreviewOrchestratorService service = newService(
                 plugin,
                 mock(ChallengeConfigView.class),
@@ -500,6 +501,7 @@ class PreviewOrchestratorServiceBehaviorTest {
     @Test
     void refreshLobbyPreview_runningPhase_clearsTrackedPreviewEntities() throws Exception {
         JavaPlugin plugin = mock(JavaPlugin.class);
+        when(plugin.isEnabled()).thenReturn(true);
         PreviewEntityService entityService = mock(PreviewEntityService.class);
         PreviewOrchestratorService service = newService(
                 plugin,
@@ -540,6 +542,7 @@ class PreviewOrchestratorServiceBehaviorTest {
     @Test
     void refreshLobbyPreview_disabledPreview_clearsTrackedPreviewEntities() throws Exception {
         JavaPlugin plugin = mock(JavaPlugin.class);
+        when(plugin.isEnabled()).thenReturn(true);
         ChallengeConfigView config = mock(ChallengeConfigView.class);
         when(config.previewEnabled()).thenReturn(false);
 
@@ -582,6 +585,7 @@ class PreviewOrchestratorServiceBehaviorTest {
     @Test
     void refreshLobbyPreview_missingRunWorldOrAnchor_clearsEntities() throws Exception {
         JavaPlugin plugin = mock(JavaPlugin.class);
+        when(plugin.isEnabled()).thenReturn(true);
         ChallengeConfigView config = mock(ChallengeConfigView.class);
         when(config.previewEnabled()).thenReturn(true);
 

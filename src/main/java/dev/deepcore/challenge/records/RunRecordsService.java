@@ -1,4 +1,4 @@
-package dev.deepcore.records;
+package dev.deepcore.challenge.records;
 
 import dev.deepcore.DeepCorePlugin;
 import dev.deepcore.logging.DeepCoreLogger;
@@ -26,12 +26,13 @@ public class RunRecordsService {
     /**
      * Creates a records service bound to this plugin's data folder and logger.
      *
-     * @param plugin plugin providing data folder and logger context
+     * @param plugin     plugin providing data folder and logger context
+     * @param dbFileName filename of the SQLite database within the plugin data folder
      */
-    public RunRecordsService(JavaPlugin plugin) {
+    public RunRecordsService(JavaPlugin plugin, String dbFileName) {
         this.plugin = plugin;
         this.log = ((DeepCorePlugin) plugin).getDeepCoreLogger();
-        this.dbPath = "jdbc:sqlite:" + plugin.getDataFolder().getAbsolutePath() + "/records.db";
+        this.dbPath = "jdbc:sqlite:" + plugin.getDataFolder().getAbsolutePath() + "/" + dbFileName;
     }
 
     /**
@@ -68,6 +69,16 @@ public class RunRecordsService {
             log.warn("Legacy run_records schema detected (player_uuid). Wiping run_records to apply current schema.");
             recreateRunRecordsTable();
         }
+
+        // Non-destructive migration: add components column to pre-existing databases.
+        if (!hasColumn("components")) {
+            addComponentsColumn();
+        }
+
+        // Non-destructive migration: add difficulty column to pre-existing databases.
+        if (!hasColumn("difficulty")) {
+            addDifficultyColumn();
+        }
     }
 
     private boolean hasColumn(String columnName) throws SQLException {
@@ -94,7 +105,9 @@ public class RunRecordsService {
                     + "blaze_rods_to_end_ms LONG NOT NULL,"
                     + "nether_to_end_ms LONG NOT NULL,"
                     + "end_to_dragon_ms LONG NOT NULL,"
-                    + "participants TEXT NOT NULL DEFAULT ''"
+                    + "participants TEXT NOT NULL DEFAULT '',"
+                    + "components TEXT NOT NULL DEFAULT '',"
+                    + "difficulty TEXT NOT NULL DEFAULT ''"
                     + ")");
         }
     }
@@ -107,8 +120,22 @@ public class RunRecordsService {
         log.debug("run_records table recreated with current schema.");
     }
 
+    private void addComponentsColumn() throws SQLException {
+        try (Statement stmt = connection.createStatement()) {
+            stmt.executeUpdate("ALTER TABLE run_records ADD COLUMN components TEXT NOT NULL DEFAULT ''");
+        }
+        log.debug("Added 'components' column to run_records table.");
+    }
+
+    private void addDifficultyColumn() throws SQLException {
+        try (Statement stmt = connection.createStatement()) {
+            stmt.executeUpdate("ALTER TABLE run_records ADD COLUMN difficulty TEXT NOT NULL DEFAULT ''");
+        }
+        log.debug("Added 'difficulty' column to run_records table.");
+    }
+
     /**
-     * Records a completed team speedrun with section timings.
+     * Records a completed team speedrun with section timings and enabled mechanics.
      *
      * @param overallTimeMs       total elapsed time in milliseconds
      * @param overworldToNetherMs time from start to reaching Nether
@@ -118,6 +145,8 @@ public class RunRecordsService {
      * @param netherToEndMs       time from Nether to End
      * @param endToDragonMs       time from End to dragon defeat
      * @param participants        participant names included in the run
+     * @param enabledComponents   component keys for mechanics enabled during the run
+     * @param difficulty          difficulty key for the run (easy/normal/hard)
      * @return the created RunRecord
      */
     public RunRecord recordRun(
@@ -127,13 +156,17 @@ public class RunRecordsService {
             long blazeRodsToEndMs,
             long netherToEndMs,
             long endToDragonMs,
-            List<String> participants) {
+            List<String> participants,
+            List<String> enabledComponents,
+            String difficulty) {
         long timestamp = System.currentTimeMillis();
-        String participantsCsv = encodeParticipants(participants);
+        String participantsCsv = encodeCsv(participants);
+        String componentsCsv = encodeCsv(enabledComponents);
+        String difficultyValue = difficulty == null ? "" : difficulty;
 
         try (PreparedStatement pstmt = connection.prepareStatement("INSERT INTO run_records "
-                + "(timestamp, overall_time_ms, overworld_to_nether_ms, nether_to_blaze_rods_ms, blaze_rods_to_end_ms, nether_to_end_ms, end_to_dragon_ms, participants) "
-                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?)")) {
+                + "(timestamp, overall_time_ms, overworld_to_nether_ms, nether_to_blaze_rods_ms, blaze_rods_to_end_ms, nether_to_end_ms, end_to_dragon_ms, participants, components, difficulty) "
+                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
             pstmt.setLong(1, timestamp);
             pstmt.setLong(2, overallTimeMs);
             pstmt.setLong(3, overworldToNetherMs);
@@ -142,6 +175,8 @@ public class RunRecordsService {
             pstmt.setLong(6, netherToEndMs);
             pstmt.setLong(7, endToDragonMs);
             pstmt.setString(8, participantsCsv);
+            pstmt.setString(9, componentsCsv);
+            pstmt.setString(10, difficultyValue);
             pstmt.executeUpdate();
 
             log.debug(String.format(
@@ -164,7 +199,9 @@ public class RunRecordsService {
                 blazeRodsToEndMs,
                 netherToEndMs,
                 endToDragonMs,
-                participantsCsv);
+                participantsCsv,
+                componentsCsv,
+                difficultyValue);
     }
 
     /**
@@ -239,7 +276,7 @@ public class RunRecordsService {
 
         try (Statement stmt = connection.createStatement()) {
             try (ResultSet rs = stmt.executeQuery(
-                    "SELECT timestamp, overall_time_ms, overworld_to_nether_ms, nether_to_blaze_rods_ms, blaze_rods_to_end_ms, nether_to_end_ms, end_to_dragon_ms, participants "
+                    "SELECT timestamp, overall_time_ms, overworld_to_nether_ms, nether_to_blaze_rods_ms, blaze_rods_to_end_ms, nether_to_end_ms, end_to_dragon_ms, participants, components, difficulty "
                             + "FROM run_records ORDER BY timestamp DESC")) {
                 while (rs.next()) {
                     records.add(new RunRecord(
@@ -250,7 +287,9 @@ public class RunRecordsService {
                             rs.getLong("blaze_rods_to_end_ms"),
                             rs.getLong("nether_to_end_ms"),
                             rs.getLong("end_to_dragon_ms"),
-                            rs.getString("participants")));
+                            rs.getString("participants"),
+                            rs.getString("components"),
+                            rs.getString("difficulty")));
                 }
             }
         } catch (SQLException e) {
@@ -274,14 +313,14 @@ public class RunRecordsService {
         }
     }
 
-    private String encodeParticipants(List<String> participants) {
-        if (participants == null || participants.isEmpty()) {
+    private String encodeCsv(List<String> values) {
+        if (values == null || values.isEmpty()) {
             return "";
         }
 
-        return participants.stream()
-                .map(name -> name == null ? "" : name.trim())
-                .filter(name -> !name.isEmpty())
+        return values.stream()
+                .map(v -> v == null ? "" : v.trim())
+                .filter(v -> !v.isEmpty())
                 .collect(Collectors.joining(", "));
     }
 }

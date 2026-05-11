@@ -86,7 +86,6 @@ public final class TrainingManager implements Listener {
     private final Map<TrainingChallengeType, ArenaSnapshot> arenaSnapshots;
     private final Map<TrainingChallengeType, BlockSnapshot> hiddenStartButtonSnapshots;
     private final Map<TrainingChallengeType, Set<BlockKey>> trackedPortalLavaByChallenge;
-    private final Map<UUID, String> lastDeathWorldByPlayer;
     private final Map<UUID, Location> pendingAttemptRespawnByPlayer;
     private final Map<UUID, BukkitTask> bridgeParticleTaskByPlayer;
 
@@ -113,7 +112,6 @@ public final class TrainingManager implements Listener {
         this.arenaSnapshots = new EnumMap<>(TrainingChallengeType.class);
         this.hiddenStartButtonSnapshots = new EnumMap<>(TrainingChallengeType.class);
         this.trackedPortalLavaByChallenge = new EnumMap<>(TrainingChallengeType.class);
-        this.lastDeathWorldByPlayer = new HashMap<>();
         this.pendingAttemptRespawnByPlayer = new HashMap<>();
         this.bridgeParticleTaskByPlayer = new HashMap<>();
     }
@@ -816,10 +814,9 @@ public final class TrainingManager implements Listener {
     public void onAttemptQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
         UUID playerId = player.getUniqueId();
-        lastDeathWorldByPlayer.remove(playerId);
         pendingAttemptRespawnByPlayer.remove(playerId);
         if (activeByPlayer.containsKey(playerId)) {
-            clearAttemptInventoryAndForceSurvival(player);
+            clearAttemptInventoryAndRestoreAdventure(player);
         }
         cancelAttempt(player, null);
     }
@@ -828,10 +825,9 @@ public final class TrainingManager implements Listener {
     public void onAttemptKick(PlayerKickEvent event) {
         Player player = event.getPlayer();
         UUID playerId = player.getUniqueId();
-        lastDeathWorldByPlayer.remove(playerId);
         pendingAttemptRespawnByPlayer.remove(playerId);
         if (activeByPlayer.containsKey(playerId)) {
-            clearAttemptInventoryAndForceSurvival(player);
+            clearAttemptInventoryAndRestoreAdventure(player);
         }
         cancelAttempt(player, null);
     }
@@ -856,14 +852,9 @@ public final class TrainingManager implements Listener {
 
             event.getDrops().clear();
             event.setDroppedExp(0);
-            clearAttemptInventoryAndForceSurvival(player);
+            clearAttemptInventoryAndRestoreAdventure(player);
             cancelAttempt(player, "Attempt cancelled: you died.");
         }
-
-        if (world == null) {
-            return;
-        }
-        lastDeathWorldByPlayer.put(player.getUniqueId(), world.getName());
     }
 
     @EventHandler(priority = EventPriority.HIGH)
@@ -872,18 +863,8 @@ public final class TrainingManager implements Listener {
         Location pendingAttemptRespawn = pendingAttemptRespawnByPlayer.remove(playerId);
         if (pendingAttemptRespawn != null) {
             event.setRespawnLocation(pendingAttemptRespawn);
-            Bukkit.getScheduler().runTask(plugin, () -> clearAttemptInventoryAndForceSurvival(event.getPlayer()));
+            Bukkit.getScheduler().runTask(plugin, () -> clearAttemptInventoryAndRestoreAdventure(event.getPlayer()));
             return;
-        }
-
-        String deathWorld = lastDeathWorldByPlayer.remove(playerId);
-        if (deathWorld == null || !deathWorld.equalsIgnoreCase(trainingWorldName)) {
-            return;
-        }
-
-        Location respawn = resolveTrainingRespawnLocation();
-        if (respawn != null) {
-            event.setRespawnLocation(respawn);
         }
     }
 
@@ -1023,6 +1004,10 @@ public final class TrainingManager implements Listener {
 
         if (bridgeDestinationPlate != null) {
             startBridgeVisuals(player, bridgeDestinationPlate);
+        }
+
+        if (type == TrainingChallengeType.BRIDGE) {
+            player.setGameMode(org.bukkit.GameMode.SURVIVAL);
         }
 
         if (teleportToStartLocation) {
@@ -1223,7 +1208,7 @@ public final class TrainingManager implements Listener {
         player.closeInventory();
         ItemStack slot8 = player.getInventory().getItem(TrainingReturnItemService.RETURN_ITEM_SLOT);
         boolean hasReturnItem = returnItemService != null && returnItemService.isReturnItem(slot8);
-        clearAttemptInventoryAndForceSurvival(player);
+        clearAttemptInventoryAndRestoreAdventure(player);
         if (hasReturnItem) {
             player.getInventory().setItem(TrainingReturnItemService.RETURN_ITEM_SLOT, slot8);
         }
@@ -1256,8 +1241,13 @@ public final class TrainingManager implements Listener {
         player.stopSound(TRAINING_MUSIC_SOUND, SoundCategory.MUSIC);
         stopBridgeVisuals(player);
         restoreAttemptArenaState(attempt.type());
-        clearAttempt(player, attempt.type());
+        TrainingChallengeType cancelledType = attempt.type();
+        clearAttempt(player, cancelledType);
         player.sendActionBar(Component.empty());
+
+        if (cancelledType == TrainingChallengeType.BRIDGE) {
+            player.setGameMode(org.bukkit.GameMode.ADVENTURE);
+        }
 
         if (returnItemService != null) {
             returnItemService.onPlayerLeaveTraining(player);
@@ -1419,7 +1409,7 @@ public final class TrainingManager implements Listener {
         return copy;
     }
 
-    private void clearAttemptInventoryAndForceSurvival(Player player) {
+    private void clearAttemptInventoryAndRestoreAdventure(Player player) {
         if (player == null) {
             return;
         }
@@ -1429,7 +1419,7 @@ public final class TrainingManager implements Listener {
         inventory.setArmorContents(new ItemStack[4]);
         inventory.setExtraContents(new ItemStack[inventory.getExtraContents().length]);
         player.setItemOnCursor(null);
-        player.setGameMode(org.bukkit.GameMode.SURVIVAL);
+        player.setGameMode(org.bukkit.GameMode.ADVENTURE);
         player.updateInventory();
     }
 

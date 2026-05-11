@@ -9,15 +9,16 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import dev.deepcore.challenge.ChallengeDifficulty;
 import dev.deepcore.challenge.ChallengeManager;
-import dev.deepcore.challenge.PrepGuiPage;
 import dev.deepcore.challenge.preview.PreviewOrchestratorService;
+import dev.deepcore.challenge.records.RunRecord;
+import dev.deepcore.challenge.records.RunRecordsService;
 import dev.deepcore.challenge.ui.PrepBookService;
+import dev.deepcore.challenge.ui.PrepGuiPage;
 import dev.deepcore.challenge.ui.PrepGuiRenderer;
 import dev.deepcore.challenge.world.WorldResetManager;
 import dev.deepcore.logging.DeepCoreLogger;
-import dev.deepcore.records.RunRecord;
-import dev.deepcore.records.RunRecordsService;
 import java.lang.reflect.Field;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -69,7 +70,8 @@ class PrepGuiCoordinatorServiceTest {
 
             verify(event).setCancelled(true);
             verify(f.prepGuiRenderer).applyPrepGuiDecorations(inventory);
-            verify(f.prepGuiRenderer).populateCategoriesPage(inventory, false, 0, 1, false);
+            verify(f.prepGuiRenderer)
+                    .populateCategoriesPage(inventory, false, 0, 1, false, ChallengeDifficulty.NORMAL, false);
             verify(player).openInventory(inventory);
 
             f.sessionState.setPhase(SessionState.Phase.COUNTDOWN);
@@ -121,6 +123,7 @@ class PrepGuiCoordinatorServiceTest {
                         eq(player),
                         eq(47),
                         eq(PrepGuiPage.CATEGORIES),
+                        any(),
                         any(),
                         any(),
                         any(),
@@ -225,7 +228,7 @@ class PrepGuiCoordinatorServiceTest {
         f.service.handlePrepGuiClick(outOfRangeClick);
         verify(outOfRangeClick).setCancelled(true);
         verify(f.prepGuiFlowService, never())
-                .handleClick(eq(player), eq(99), any(), any(), any(), any(), any(), any(), any(), any());
+                .handleClick(eq(player), eq(99), any(), any(), any(), any(), any(), any(), any(), any(), any());
 
         InventoryClickEvent resetClick = mock(InventoryClickEvent.class);
         InventoryView resetView = mock(InventoryView.class);
@@ -249,6 +252,7 @@ class PrepGuiCoordinatorServiceTest {
                         eq(player),
                         eq(47),
                         eq(PrepGuiPage.CATEGORIES),
+                        any(),
                         any(),
                         any(),
                         any(),
@@ -416,10 +420,13 @@ class PrepGuiCoordinatorServiceTest {
                 isDiscoPreviewBlockingChallengeStart,
                 announceDiscoPreviewStartBlocked,
                 startRun,
+                () -> false,
+                mock(Runnable.class),
                 prepGuiTitle,
                 DateTimeFormatter.ISO_LOCAL_DATE);
 
         Fixture() {
+            when(challengeManager.getDifficulty()).thenReturn(ChallengeDifficulty.NORMAL);
             when(recordsService.getAllRecords()).thenReturn(List.of(mock(RunRecord.class)));
             when(runUiFormattingService.formatSplitDuration(anyLong())).thenReturn("00:10");
             when(prepGuiRenderer.populateRunHistoryPage(any(), any(Integer.class), any(), any(), any()))

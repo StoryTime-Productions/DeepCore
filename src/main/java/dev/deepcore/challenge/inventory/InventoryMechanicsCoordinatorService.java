@@ -16,6 +16,8 @@ import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
 import org.bukkit.entity.AbstractArrow;
+import org.bukkit.entity.Boat;
+import org.bukkit.entity.ChestBoat;
 import org.bukkit.entity.Egg;
 import org.bukkit.entity.EnderPearl;
 import org.bukkit.entity.GlowItemFrame;
@@ -30,9 +32,11 @@ import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockMultiPlaceEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityPickupItemEvent;
+import org.bukkit.event.entity.EntityPlaceEvent;
 import org.bukkit.event.entity.EntityResurrectEvent;
 import org.bukkit.event.entity.ProjectileLaunchEvent;
 import org.bukkit.event.inventory.CraftItemEvent;
+import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCreativeEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
@@ -70,6 +74,7 @@ public final class InventoryMechanicsCoordinatorService {
     private final Consumer<Player> enforceInventorySlotCap;
     private final DeepCoreLogger log;
     private final Map<UUID, PendingWearableEquip> pendingWearableHotbarEquips;
+    private final Map<UUID, Integer> pendingArmorEquipSourceSlots;
 
     /**
      * Creates an inventory mechanics coordinator service.
@@ -110,6 +115,7 @@ public final class InventoryMechanicsCoordinatorService {
         this.enforceInventorySlotCap = enforceInventorySlotCap;
         this.log = log;
         this.pendingWearableHotbarEquips = new HashMap<>();
+        this.pendingArmorEquipSourceSlots = new HashMap<>();
     }
 
     /**
@@ -130,8 +136,26 @@ public final class InventoryMechanicsCoordinatorService {
         }
 
         requestInventorySlotCapEnforcement(player);
-        requestSharedInventorySync(player);
+
+        if (event.getAction() == InventoryAction.MOVE_TO_OTHER_INVENTORY
+                && event.getClickedInventory() instanceof org.bukkit.inventory.PlayerInventory) {
+            ItemStack clicked = event.getCurrentItem();
+            if (clicked != null && isArmorMaterial(clicked.getType())) {
+                pendingArmorEquipSourceSlots.put(player.getUniqueId(), event.getSlot());
+            }
+        }
+
+        // Wearable detect must be scheduled before the full inventory sync.
+        // Both use runTask and execute in FIFO order on the next tick. If the sync
+        // fires first it clears the equip source slot on other participants before the
+        // consume runs, causing the fallback search to remove the wrong item (the second
+        // set's copy instead of the one that was just equipped).
         requestWearableEquipSync(player);
+
+        // InventoryClickEvent fires before Bukkit applies the slot mutation for both
+        // player and external inventories, so always defer to the next tick so the
+        // inventory state reflects the completed action when synced.
+        Bukkit.getScheduler().runTask(plugin, () -> requestSharedInventorySync(player));
     }
 
     /**
@@ -171,7 +195,9 @@ public final class InventoryMechanicsCoordinatorService {
         }
 
         requestInventorySlotCapEnforcement(player);
-        requestSharedInventorySync(player);
+        // InventoryDragEvent fires before Bukkit distributes items into the dragged slots,
+        // so defer to the next tick just like handleInventoryClick.
+        Bukkit.getScheduler().runTask(plugin, () -> requestSharedInventorySync(player));
         requestWearableEquipSync(player);
     }
 
@@ -191,6 +217,7 @@ public final class InventoryMechanicsCoordinatorService {
 
         requestInventorySlotCapEnforcement(event.getPlayer());
         requestSharedInventorySync(event.getPlayer());
+        sharedInventorySyncService.flushPendingSharedInventorySync();
     }
 
     /**
@@ -210,6 +237,7 @@ public final class InventoryMechanicsCoordinatorService {
 
         requestInventorySlotCapEnforcement(event.getPlayer());
         requestSharedInventorySync(event.getPlayer());
+        sharedInventorySyncService.flushPendingSharedInventorySync();
     }
 
     /**
@@ -220,6 +248,7 @@ public final class InventoryMechanicsCoordinatorService {
     public void handlePlayerItemConsume(PlayerItemConsumeEvent event) {
         requestInventorySlotCapEnforcement(event.getPlayer());
         requestSharedInventorySync(event.getPlayer());
+        sharedInventorySyncService.flushPendingSharedInventorySync();
     }
 
     /**
@@ -234,6 +263,7 @@ public final class InventoryMechanicsCoordinatorService {
 
         requestInventorySlotCapEnforcement(player);
         requestSharedInventorySync(player);
+        sharedInventorySyncService.flushPendingSharedInventorySync();
     }
 
     /**
@@ -245,6 +275,7 @@ public final class InventoryMechanicsCoordinatorService {
         Player player = event.getPlayer();
         requestInventorySlotCapEnforcement(player);
         requestSharedInventorySync(player);
+        sharedInventorySyncService.flushPendingSharedInventorySync();
     }
 
     /**
@@ -255,6 +286,7 @@ public final class InventoryMechanicsCoordinatorService {
     public void handlePlayerItemDamage(PlayerItemDamageEvent event) {
         requestInventorySlotCapEnforcement(event.getPlayer());
         requestSharedInventorySync(event.getPlayer());
+        sharedInventorySyncService.flushPendingSharedInventorySync();
     }
 
     /**
@@ -264,7 +296,11 @@ public final class InventoryMechanicsCoordinatorService {
      */
     public void handlePlayerBucketEmpty(PlayerBucketEmptyEvent event) {
         requestInventorySlotCapEnforcement(event.getPlayer());
-        requestSharedInventorySync(event.getPlayer());
+        // Bucket item transform (water/lava bucket -> empty bucket) happens after the
+        // event fires, so syncing immediately broadcasts the pre-transform state.
+        // Defer by 1 tick so Bukkit completes the transform first, matching how
+        // boats and block-place events are handled.
+        scheduleDeterministicSourceSync(event.getPlayer(), 1L);
     }
 
     /**
@@ -274,7 +310,9 @@ public final class InventoryMechanicsCoordinatorService {
      */
     public void handlePlayerBucketFill(PlayerBucketFillEvent event) {
         requestInventorySlotCapEnforcement(event.getPlayer());
-        requestSharedInventorySync(event.getPlayer());
+        // Same timing issue as bucket-empty: empty bucket -> filled bucket transform
+        // occurs after the event. Defer by 1 tick.
+        scheduleDeterministicSourceSync(event.getPlayer(), 1L);
     }
 
     /**
@@ -326,8 +364,10 @@ public final class InventoryMechanicsCoordinatorService {
             return;
         }
 
+        int sourceInventorySlot =
+                event.getHand() == EquipmentSlot.HAND ? player.getInventory().getHeldItemSlot() : 40;
         UUID playerId = player.getUniqueId();
-        PendingWearableEquip pending = new PendingWearableEquip(equipSlot, usedItem.getType());
+        PendingWearableEquip pending = new PendingWearableEquip(equipSlot, usedItem.getType(), sourceInventorySlot);
         pendingWearableHotbarEquips.put(playerId, pending);
 
         // The equip decision is finalized by handlePlayerArmorChanged. Here we only
@@ -360,7 +400,7 @@ public final class InventoryMechanicsCoordinatorService {
 
                             pendingWearableHotbarEquips.remove(playerId);
                             sharedInventorySyncService.consumeWearableFromOtherParticipants(
-                                    pending.material(), playerId);
+                                    pending.material(), playerId, pending.sourceInventorySlot());
                             sharedInventorySyncService.capturePlayerWearableSnapshot(player);
 
                             log.debug("[shared-inv:armor-hotbar] equip fallback confirmed for " + player.getName()
@@ -411,7 +451,8 @@ public final class InventoryMechanicsCoordinatorService {
         }
 
         pendingWearableHotbarEquips.remove(playerId);
-        sharedInventorySyncService.consumeWearableFromOtherParticipants(pending.material(), playerId);
+        sharedInventorySyncService.consumeWearableFromOtherParticipants(
+                pending.material(), playerId, pending.sourceInventorySlot());
         sharedInventorySyncService.capturePlayerWearableSnapshot(player);
 
         log.debug("[shared-inv:armor-hotbar] equip confirmed for " + player.getName()
@@ -655,7 +696,7 @@ public final class InventoryMechanicsCoordinatorService {
                     + pickedItem.getType().name());
 
             requestInventorySlotCapEnforcement(player);
-            requestSharedInventorySync(player);
+            Bukkit.getScheduler().runTaskLater(plugin, () -> requestSharedInventorySync(player), 1L);
 
             if (isChallengeActive.test(player) && isSharedInventoryEnabled.get()) {
                 for (Player participant : onlineParticipantsSupplier.get()) {
@@ -687,7 +728,59 @@ public final class InventoryMechanicsCoordinatorService {
      */
     public void handleBlockPlace(BlockPlaceEvent event) {
         requestInventorySlotCapEnforcement(event.getPlayer());
-        requestSharedInventorySync(event.getPlayer());
+        Bukkit.getScheduler().runTaskLater(plugin, () -> requestSharedInventorySync(event.getPlayer()), 1L);
+    }
+
+    /**
+     * Handles entity placements (boats, minecarts) that consume an item from
+     * inventory.
+     *
+     * @param event entity place event to process
+     */
+    public void handleEntityPlace(EntityPlaceEvent event) {
+        Player player = event.getPlayer();
+        if (player == null) {
+            return;
+        }
+        requestInventorySlotCapEnforcement(player);
+        if (!isChallengeActive.test(player) || !isSharedInventoryEnabled.get()) {
+            return;
+        }
+        Material placedMaterial = resolveEntityPlaceMaterial(event.getEntity());
+        if (placedMaterial != null) {
+            sharedInventorySyncService.consumeItemFromOtherParticipants(placedMaterial, player.getUniqueId());
+        } else {
+            Bukkit.getScheduler().runTaskLater(plugin, () -> requestSharedInventorySync(player), 1L);
+        }
+    }
+
+    private static Material resolveEntityPlaceMaterial(org.bukkit.entity.Entity entity) {
+        if (entity instanceof ChestBoat boat) {
+            Boat.Type type = boat.getBoatType();
+            if (type == Boat.Type.BAMBOO) {
+                return Material.BAMBOO_CHEST_RAFT;
+            }
+            return Material.getMaterial(type.name() + "_CHEST_BOAT");
+        }
+        if (entity instanceof Boat boat) {
+            Boat.Type type = boat.getBoatType();
+            if (type == Boat.Type.BAMBOO) {
+                return Material.BAMBOO_RAFT;
+            }
+            return Material.getMaterial(type.name() + "_BOAT");
+        }
+        org.bukkit.entity.EntityType type = entity.getType();
+        if (type == null) {
+            return null;
+        }
+        return switch (type.name()) {
+            case "MINECART" -> Material.MINECART;
+            case "CHEST_MINECART" -> Material.CHEST_MINECART;
+            case "FURNACE_MINECART" -> Material.FURNACE_MINECART;
+            case "TNT_MINECART" -> Material.TNT_MINECART;
+            case "HOPPER_MINECART" -> Material.HOPPER_MINECART;
+            default -> null;
+        };
     }
 
     /**
@@ -697,7 +790,7 @@ public final class InventoryMechanicsCoordinatorService {
      */
     public void handleBlockMultiPlace(BlockMultiPlaceEvent event) {
         requestInventorySlotCapEnforcement(event.getPlayer());
-        requestSharedInventorySync(event.getPlayer());
+        Bukkit.getScheduler().runTaskLater(plugin, () -> requestSharedInventorySync(event.getPlayer()), 1L);
     }
 
     private void requestSharedInventorySync(Player source) {
@@ -705,7 +798,9 @@ public final class InventoryMechanicsCoordinatorService {
     }
 
     private void requestWearableEquipSync(Player source) {
-        sharedInventorySyncService.requestWearableEquipSync(source);
+        int sourceSlot = pendingArmorEquipSourceSlots.getOrDefault(source.getUniqueId(), -1);
+        pendingArmorEquipSourceSlots.remove(source.getUniqueId());
+        sharedInventorySyncService.requestWearableEquipSync(source, sourceSlot);
     }
 
     private void requestInventorySlotCapEnforcement(Player player) {
@@ -771,5 +866,13 @@ public final class InventoryMechanicsCoordinatorService {
         };
     }
 
-    private record PendingWearableEquip(EquipmentSlot slot, Material material) {}
+    private static boolean isArmorMaterial(Material material) {
+        EquipmentSlot slot = material.getEquipmentSlot();
+        return slot == EquipmentSlot.HEAD
+                || slot == EquipmentSlot.CHEST
+                || slot == EquipmentSlot.LEGS
+                || slot == EquipmentSlot.FEET;
+    }
+
+    private record PendingWearableEquip(EquipmentSlot slot, Material material, int sourceInventorySlot) {}
 }

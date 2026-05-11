@@ -5,6 +5,7 @@ import dev.deepcore.challenge.ChallengeManager;
 import dev.deepcore.challenge.world.WorldResetManager;
 import java.util.function.Supplier;
 import org.bukkit.Bukkit;
+import org.bukkit.Difficulty;
 import org.bukkit.GameRule;
 import org.bukkit.World;
 
@@ -39,8 +40,12 @@ public final class SessionRulesCoordinatorService {
     public void syncWorldRules() {
         boolean keepInventory =
                 challengeManager.isEnabled() && challengeManager.isComponentEnabled(ChallengeComponent.KEEP_INVENTORY);
+        Difficulty worldDifficulty = challengeManager.isEnabled()
+                ? Difficulty.valueOf(challengeManager.getDifficulty().name())
+                : Difficulty.NORMAL;
         for (World world : Bukkit.getWorlds()) {
             world.setGameRule(GameRule.KEEP_INVENTORY, keepInventory);
+            world.setDifficulty(worldDifficulty);
         }
 
         WorldResetManager worldResetManager = worldResetManagerSupplier.get();

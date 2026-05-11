@@ -16,7 +16,7 @@ public final class SidebarModelFactory {
      * @return sidebar model snapshot for lobby rendering
      */
     public SidebarModel create(
-            dev.deepcore.records.RunRecordsService recordsService,
+            dev.deepcore.challenge.records.RunRecordsService recordsService,
             SessionState.Phase phase,
             int readyCount,
             int onlineCount) {

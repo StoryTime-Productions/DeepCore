@@ -38,6 +38,7 @@ import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
+import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitScheduler;
 import org.junit.jupiter.api.Test;
@@ -238,6 +239,15 @@ class SessionPlayerLifecycleServiceTest {
                 .thenReturn(true);
         when(f.isSharedInventoryEnabled.getAsBoolean()).thenReturn(true);
 
+        Player survivor = mock(Player.class);
+        UUID survivorId = UUID.randomUUID();
+        when(survivor.getUniqueId()).thenReturn(survivorId);
+        when(survivor.getGameMode()).thenReturn(GameMode.SURVIVAL);
+        PlayerInventory survivorInventory = mock(PlayerInventory.class);
+        when(survivor.getInventory()).thenReturn(survivorInventory);
+        f.onlineParticipants.add(player);
+        f.onlineParticipants.add(survivor);
+
         Location runRespawn = mock(Location.class);
         when(f.respawnRoutingService.resolveRunRespawnLocation(id)).thenReturn(runRespawn);
 
@@ -277,14 +287,312 @@ class SessionPlayerLifecycleServiceTest {
         verify(f.respawnRoutingService).recordDeathWorld(id, world);
         verify(f.sessionFailureService).handleHardcoreFailureIfNeeded();
         verify(respawnEvent).setRespawnLocation(runRespawn);
-        verify(player).setGameMode(GameMode.SPECTATOR);
-        verify(f.log).sendWarn(player, "You were eliminated by hardcore mode.");
-        verify(f.syncSharedInventoryFromFirstParticipant).run();
+        verify(f.endChallengeAndReturnToPrep).run();
+        verify(player, never()).setGameMode(GameMode.SPECTATOR);
+        verify(f.sharedInventorySyncService).syncSharedInventoryFromSourceNow(survivor);
         verify(f.syncSharedHealthFromFirstParticipant).run();
         verify(f.syncSharedHungerFromMostFilledParticipant).run();
         verify(f.enforceInventorySlotCap).accept(player);
         verify(f.applyInitialHalfHeart).accept(player);
         verify(f.runStatusService).onParticipantWorldChanged(any(), eq(f.onlineParticipants), anyLong(), anyBoolean());
+    }
+
+    @Test
+    void handlePlayerChangedWorld_enteringLobbyWorld_restoresDefaultMaxHealth() {
+        // When a player is teleported back to the lobby (e.g. after the challenge ends),
+        // restoreDefaultMaxHealth must be called so the half-heart health cap is lifted.
+        // Previously this was only called in handlePlayerJoin, not on world change.
+        Fixture f = new Fixture();
+        f.sessionState.setPhase(SessionState.Phase.PREP);
+
+        Player player = mock(Player.class);
+        World lobbyWorld = mock(World.class);
+        when(player.getWorld()).thenReturn(lobbyWorld);
+        when(f.worldClassificationService.isLobbyOrLimboWorld(lobbyWorld)).thenReturn(true);
+
+        PlayerChangedWorldEvent event = mock(PlayerChangedWorldEvent.class);
+        when(event.getPlayer()).thenReturn(player);
+
+        f.service.handlePlayerChangedWorld(event);
+
+        verify(f.restoreDefaultMaxHealth).accept(player);
+    }
+
+    @Test
+    void handlePlayerChangedWorld_enteringNonLobbyWorld_doesNotRestoreMaxHealth() {
+        Fixture f = new Fixture();
+        f.sessionState.setPhase(SessionState.Phase.RUNNING);
+
+        Player player = mock(Player.class);
+        World runWorld = mock(World.class);
+        when(player.getWorld()).thenReturn(runWorld);
+        when(f.worldClassificationService.isLobbyOrLimboWorld(runWorld)).thenReturn(false);
+        when(f.worldClassificationService.isTrainingWorld(runWorld)).thenReturn(false);
+        when(f.isChallengeActive.test(player)).thenReturn(false);
+
+        PlayerChangedWorldEvent event = mock(PlayerChangedWorldEvent.class);
+        when(event.getPlayer()).thenReturn(player);
+
+        f.service.handlePlayerChangedWorld(event);
+
+        verify(f.restoreDefaultMaxHealth, never()).accept(any());
+    }
+
+    @Test
+    void handlePlayerRespawn_hardcoreEliminated_setsSpectatorWhenOtherParticipantsStillAlive() {
+        Fixture f = new Fixture();
+        f.sessionState.setPhase(SessionState.Phase.RUNNING);
+
+        Player player = mock(Player.class);
+        UUID id = UUID.randomUUID();
+        when(player.getUniqueId()).thenReturn(id);
+
+        UUID survivorId = UUID.randomUUID();
+        f.participants.add(id);
+        f.participants.add(survivorId);
+        f.eliminatedPlayers.add(id);
+        when(f.isChallengeActive.test(player)).thenReturn(true);
+        when(f.challengeManager.isComponentEnabled(ChallengeComponent.HARDCORE)).thenReturn(true);
+
+        PlayerRespawnEvent respawnEvent = mock(PlayerRespawnEvent.class);
+        when(respawnEvent.getPlayer()).thenReturn(player);
+
+        BukkitScheduler scheduler = mock(BukkitScheduler.class);
+        try (MockedStatic<Bukkit> bukkit = org.mockito.Mockito.mockStatic(Bukkit.class)) {
+            bukkit.when(Bukkit::getScheduler).thenReturn(scheduler);
+            doAnswer(invocation -> {
+                        Runnable task = invocation.getArgument(1);
+                        task.run();
+                        return null;
+                    })
+                    .when(scheduler)
+                    .runTask(eq(f.plugin), any(Runnable.class));
+
+            f.service.handlePlayerRespawn(respawnEvent);
+        }
+
+        verify(player).setGameMode(GameMode.SPECTATOR);
+        verify(f.log).sendWarn(player, "You were eliminated by hardcore mode.");
+        verify(f.endChallengeAndReturnToPrep, never()).run();
+    }
+
+    @Test
+    void handlePlayerDeath_whenHardcoreDisabled_tracksDeathWithoutFailureReset() {
+        Fixture f = new Fixture();
+        f.sessionState.setPhase(SessionState.Phase.RUNNING);
+
+        Player player = mock(Player.class);
+        UUID id = UUID.randomUUID();
+        when(player.getUniqueId()).thenReturn(id);
+        World world = mock(World.class);
+        when(player.getWorld()).thenReturn(world);
+
+        f.participants.add(id);
+        when(f.isChallengeActive.test(player)).thenReturn(true);
+        when(f.challengeManager.isComponentEnabled(ChallengeComponent.DEGRADING_INVENTORY))
+                .thenReturn(true);
+        when(f.challengeManager.isComponentEnabled(ChallengeComponent.HARDCORE)).thenReturn(false);
+
+        PlayerDeathEvent deathEvent = mock(PlayerDeathEvent.class);
+        when(deathEvent.getPlayer()).thenReturn(player);
+
+        f.service.handlePlayerDeath(deathEvent);
+
+        verify(f.clearLockedBarrierSlots).accept(player);
+        verify(f.respawnRoutingService).recordDeathWorld(id, world);
+        verify(f.sessionFailureService, never()).handleHardcoreFailureIfNeeded();
+        verify(f.sessionFailureService).handleAllPlayersDeadFailureIfNeeded();
+        org.junit.jupiter.api.Assertions.assertTrue(f.recentlyDeadPlayers.contains(id));
+        org.junit.jupiter.api.Assertions.assertFalse(f.eliminatedPlayers.contains(id));
+    }
+
+    @Test
+    void handlePlayerRespawn_runningPhase_overridesOnlyStaleBedRespawn() {
+        Fixture f = new Fixture();
+        f.sessionState.setPhase(SessionState.Phase.RUNNING);
+
+        Player player = mock(Player.class);
+        UUID id = UUID.randomUUID();
+        when(player.getUniqueId()).thenReturn(id);
+        f.participants.add(id);
+
+        World currentRunWorld = mock(World.class);
+        UUID currentRunWorldId = UUID.randomUUID();
+        when(currentRunWorld.getUID()).thenReturn(currentRunWorldId);
+
+        Location pluginRespawn = mock(Location.class);
+        when(pluginRespawn.getWorld()).thenReturn(currentRunWorld);
+        when(f.respawnRoutingService.resolveRunRespawnLocation(id)).thenReturn(pluginRespawn);
+
+        // Simulate a bed respawn set from a previous run world
+        World oldWorld = mock(World.class);
+        when(oldWorld.getUID()).thenReturn(UUID.randomUUID());
+        Location staleOldWorldBed = new Location(oldWorld, 100.0D, 70.0D, 100.0D);
+
+        PlayerRespawnEvent respawnEvent = mock(PlayerRespawnEvent.class);
+        when(respawnEvent.getPlayer()).thenReturn(player);
+        when(respawnEvent.getRespawnLocation()).thenReturn(staleOldWorldBed);
+
+        f.service.handlePlayerRespawn(respawnEvent);
+
+        verify(f.respawnRoutingService).resolveRunRespawnLocation(id);
+        verify(respawnEvent).setRespawnLocation(pluginRespawn);
+    }
+
+    @Test
+    void handlePlayerRespawn_runningPhase_preservesBedRespawnInCurrentWorld() {
+        Fixture f = new Fixture();
+        f.sessionState.setPhase(SessionState.Phase.RUNNING);
+
+        Player player = mock(Player.class);
+        UUID id = UUID.randomUUID();
+        when(player.getUniqueId()).thenReturn(id);
+        f.participants.add(id);
+
+        World currentWorld = mock(World.class);
+        UUID currentWorldId = UUID.randomUUID();
+        when(currentWorld.getUID()).thenReturn(currentWorldId);
+
+        Location runRespawn = mock(Location.class);
+        when(runRespawn.getWorld()).thenReturn(currentWorld);
+        when(f.respawnRoutingService.resolveRunRespawnLocation(id)).thenReturn(runRespawn);
+
+        Location bedRespawn = mock(Location.class);
+        when(bedRespawn.getWorld()).thenReturn(currentWorld);
+
+        PlayerRespawnEvent respawnEvent = mock(PlayerRespawnEvent.class);
+        when(respawnEvent.getPlayer()).thenReturn(player);
+        when(respawnEvent.getRespawnLocation()).thenReturn(bedRespawn);
+
+        f.service.handlePlayerRespawn(respawnEvent);
+
+        verify(f.respawnRoutingService).resolveRunRespawnLocation(id);
+        verify(respawnEvent, never()).setRespawnLocation(any(Location.class));
+    }
+
+    @Test
+    void handlePlayerRespawn_runningPhase_skipsRespawningPlayerAsSharedInventorySource() {
+        Fixture f = new Fixture();
+        f.sessionState.setPhase(SessionState.Phase.RUNNING);
+
+        Player respawningPlayer = mock(Player.class);
+        UUID respawningId = UUID.randomUUID();
+        when(respawningPlayer.getUniqueId()).thenReturn(respawningId);
+        when(respawningPlayer.getGameMode()).thenReturn(GameMode.SURVIVAL);
+        when(f.isChallengeActive.test(respawningPlayer)).thenReturn(true);
+        when(f.isSharedInventoryEnabled.getAsBoolean()).thenReturn(true);
+
+        Player survivor = mock(Player.class);
+        UUID survivorId = UUID.randomUUID();
+        when(survivor.getUniqueId()).thenReturn(survivorId);
+        when(survivor.getGameMode()).thenReturn(GameMode.SURVIVAL);
+
+        f.onlineParticipants.add(respawningPlayer);
+        f.onlineParticipants.add(survivor);
+
+        Location runRespawn = mock(Location.class);
+        when(f.respawnRoutingService.resolveRunRespawnLocation(respawningId)).thenReturn(runRespawn);
+
+        PlayerRespawnEvent respawnEvent = mock(PlayerRespawnEvent.class);
+        when(respawnEvent.getPlayer()).thenReturn(respawningPlayer);
+        when(respawnEvent.getRespawnLocation()).thenReturn(mock(Location.class));
+
+        BukkitScheduler scheduler = mock(BukkitScheduler.class);
+        try (MockedStatic<Bukkit> bukkit = org.mockito.Mockito.mockStatic(Bukkit.class)) {
+            bukkit.when(Bukkit::getScheduler).thenReturn(scheduler);
+            doAnswer(invocation -> {
+                        Runnable task = invocation.getArgument(1);
+                        task.run();
+                        return null;
+                    })
+                    .when(scheduler)
+                    .runTask(eq(f.plugin), any(Runnable.class));
+
+            f.service.handlePlayerRespawn(respawnEvent);
+        }
+
+        verify(f.sharedInventorySyncService).syncSharedInventoryFromSourceNow(survivor);
+        verify(f.sharedInventorySyncService, never()).syncSharedInventoryFromSourceNow(respawningPlayer);
+    }
+
+    @Test
+    void handlePlayerDeath_sharedInventoryOn_keepInventoryOff_wipesOtherParticipants() {
+        Fixture f = new Fixture();
+        f.sessionState.setPhase(SessionState.Phase.RUNNING);
+
+        Player dyingPlayer = mock(Player.class);
+        UUID dyingId = UUID.randomUUID();
+        when(dyingPlayer.getUniqueId()).thenReturn(dyingId);
+        when(dyingPlayer.getWorld()).thenReturn(mock(World.class));
+        PlayerInventory dyingInv = mock(PlayerInventory.class);
+        when(dyingPlayer.getInventory()).thenReturn(dyingInv);
+
+        Player otherA = mock(Player.class);
+        Player otherB = mock(Player.class);
+        UUID otherAId = UUID.randomUUID();
+        UUID otherBId = UUID.randomUUID();
+        when(otherA.getUniqueId()).thenReturn(otherAId);
+        when(otherB.getUniqueId()).thenReturn(otherBId);
+
+        PlayerInventory invA = mock(PlayerInventory.class);
+        PlayerInventory invB = mock(PlayerInventory.class);
+        when(otherA.getInventory()).thenReturn(invA);
+        when(otherB.getInventory()).thenReturn(invB);
+
+        f.onlineParticipants.add(dyingPlayer);
+        f.onlineParticipants.add(otherA);
+        f.onlineParticipants.add(otherB);
+
+        when(f.isChallengeActive.test(dyingPlayer)).thenReturn(true);
+        when(f.isSharedInventoryEnabled.getAsBoolean()).thenReturn(true);
+        when(f.challengeManager.isComponentEnabled(ChallengeComponent.KEEP_INVENTORY))
+                .thenReturn(false);
+        when(f.challengeManager.isComponentEnabled(ChallengeComponent.HARDCORE)).thenReturn(false);
+
+        PlayerDeathEvent deathEvent = mock(PlayerDeathEvent.class);
+        when(deathEvent.getPlayer()).thenReturn(dyingPlayer);
+
+        f.service.handlePlayerDeath(deathEvent);
+
+        verify(deathEvent).setKeepInventory(false);
+        verify(invA).clear();
+        verify(otherA).updateInventory();
+        verify(invB).clear();
+        verify(otherB).updateInventory();
+        verify(dyingInv, never()).clear();
+    }
+
+    @Test
+    void handlePlayerDeath_sharedInventoryOn_keepInventoryOn_doesNotWipeOtherParticipants() {
+        Fixture f = new Fixture();
+        f.sessionState.setPhase(SessionState.Phase.RUNNING);
+
+        Player dyingPlayer = mock(Player.class);
+        UUID dyingId = UUID.randomUUID();
+        when(dyingPlayer.getUniqueId()).thenReturn(dyingId);
+        when(dyingPlayer.getWorld()).thenReturn(mock(World.class));
+
+        Player other = mock(Player.class);
+        when(other.getUniqueId()).thenReturn(UUID.randomUUID());
+        PlayerInventory otherInv = mock(PlayerInventory.class);
+        when(other.getInventory()).thenReturn(otherInv);
+
+        f.onlineParticipants.add(dyingPlayer);
+        f.onlineParticipants.add(other);
+
+        when(f.isChallengeActive.test(dyingPlayer)).thenReturn(true);
+        when(f.isSharedInventoryEnabled.getAsBoolean()).thenReturn(true);
+        when(f.challengeManager.isComponentEnabled(ChallengeComponent.KEEP_INVENTORY))
+                .thenReturn(true);
+        when(f.challengeManager.isComponentEnabled(ChallengeComponent.HARDCORE)).thenReturn(false);
+
+        PlayerDeathEvent deathEvent = mock(PlayerDeathEvent.class);
+        when(deathEvent.getPlayer()).thenReturn(dyingPlayer);
+
+        f.service.handlePlayerDeath(deathEvent);
+
+        verify(otherInv, never()).clear();
+        verify(other, never()).updateInventory();
     }
 
     private static final class Fixture {

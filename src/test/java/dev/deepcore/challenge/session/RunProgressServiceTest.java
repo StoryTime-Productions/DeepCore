@@ -163,4 +163,61 @@ class RunProgressServiceTest {
         assertEquals(777L, durations.netherToEndMs());
         assertEquals(777L, durations.endToDragonMs());
     }
+
+    @Test
+    void restore_setsAllMilestoneStateFromSnapshot() {
+        RunProgressService service = new RunProgressService();
+
+        service.restore(true, 1_000L, true, 2_000L, true, 3_000L);
+
+        assertTrue(service.hasReachedNether());
+        assertEquals(1_000L, service.getNetherReachedMillis());
+        assertTrue(service.hasReachedBlazeObjective());
+        assertEquals(2_000L, service.getBlazeObjectiveReachedMillis());
+        assertTrue(service.hasReachedEnd());
+        assertEquals(3_000L, service.getEndReachedMillis());
+        assertFalse(service.isDragonKilled());
+    }
+
+    @Test
+    void restore_withFalseFlags_keepsAllMilestonesUnset() {
+        RunProgressService service = new RunProgressService();
+        service.markNetherReached(500L);
+
+        service.restore(false, 0L, false, 0L, false, 0L);
+
+        assertFalse(service.hasReachedNether());
+        assertFalse(service.hasReachedBlazeObjective());
+        assertFalse(service.hasReachedEnd());
+        assertEquals(0L, service.getNetherReachedMillis());
+        assertEquals(0L, service.getBlazeObjectiveReachedMillis());
+        assertEquals(0L, service.getEndReachedMillis());
+    }
+
+    @Test
+    void reset_clearsAllMilestones() {
+        RunProgressService service = new RunProgressService();
+        service.markNetherReached(1_000L);
+        service.maybeMarkBlazeObjectiveReached(true, 6, 2_000L);
+        service.markEndReached(3_000L);
+        service.markDragonKilled(4_000L);
+
+        service.reset();
+
+        assertFalse(service.hasReachedNether());
+        assertFalse(service.hasReachedBlazeObjective());
+        assertFalse(service.hasReachedEnd());
+        assertFalse(service.isDragonKilled());
+        assertEquals(0L, service.getNetherReachedMillis());
+        assertEquals(0L, service.getBlazeObjectiveReachedMillis());
+        assertEquals(0L, service.getEndReachedMillis());
+    }
+
+    @Test
+    void maybeMarkBlazeObjectiveReached_requiresNetherFirst() {
+        RunProgressService service = new RunProgressService();
+
+        assertTrue(service.maybeMarkBlazeObjectiveReached(true, 6, 1_000L).isEmpty());
+        assertFalse(service.hasReachedBlazeObjective());
+    }
 }

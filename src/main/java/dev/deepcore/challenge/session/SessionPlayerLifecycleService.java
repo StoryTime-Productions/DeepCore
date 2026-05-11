@@ -381,6 +381,19 @@ public final class SessionPlayerLifecycleService {
 
         UUID playerId = player.getUniqueId();
         respawnRoutingService.recordDeathWorld(playerId, player.getWorld());
+
+        if (isSharedInventoryEnabled.getAsBoolean()
+                && !challengeManager.isComponentEnabled(ChallengeComponent.KEEP_INVENTORY)) {
+            event.setKeepInventory(false);
+            for (Player participant : onlineParticipantsSupplier.get()) {
+                if (participant.getUniqueId().equals(playerId)) {
+                    continue;
+                }
+                participant.getInventory().clear();
+                participant.updateInventory();
+            }
+        }
+
         boolean hardcore = challengeManager.isComponentEnabled(ChallengeComponent.HARDCORE);
         if (hardcore) {
             eliminatedPlayers.add(playerId);
@@ -402,7 +415,16 @@ public final class SessionPlayerLifecycleService {
 
         if (sessionState.is(SessionState.Phase.RUNNING) && participants.contains(playerId)) {
             Location runRespawn = respawnRoutingService.resolveRunRespawnLocation(playerId);
-            if (runRespawn != null) {
+            Location currentRespawn = event.getRespawnLocation();
+            boolean preserveRespawn = currentRespawn != null
+                    && currentRespawn.getWorld() != null
+                    && runRespawn != null
+                    && runRespawn.getWorld() != null
+                    && currentRespawn
+                            .getWorld()
+                            .getUID()
+                            .equals(runRespawn.getWorld().getUID());
+            if (runRespawn != null && !preserveRespawn) {
                 event.setRespawnLocation(runRespawn);
             }
         }
@@ -431,13 +453,17 @@ public final class SessionPlayerLifecycleService {
                 if (!sessionState.is(SessionState.Phase.RUNNING) || !eliminatedPlayers.contains(playerId)) {
                     return;
                 }
-                player.setGameMode(GameMode.SPECTATOR);
-                log.sendWarn(player, "You were eliminated by hardcore mode.");
+                if (eliminatedPlayers.containsAll(participants)) {
+                    endChallengeAndReturnToPrep.run();
+                } else {
+                    player.setGameMode(GameMode.SPECTATOR);
+                    log.sendWarn(player, "You were eliminated by hardcore mode.");
+                }
             });
         }
 
         if (isSharedInventoryEnabled.getAsBoolean()) {
-            Bukkit.getScheduler().runTask(plugin, syncSharedInventoryFromFirstParticipant);
+            Bukkit.getScheduler().runTask(plugin, () -> syncSharedInventoryFromOtherParticipant(playerId));
         }
 
         if (challengeManager.isComponentEnabled(ChallengeComponent.SHARED_HEALTH)) {
@@ -467,6 +493,10 @@ public final class SessionPlayerLifecycleService {
                 eliminatedPlayers);
         playerLobbyStateService.applyLobbyInventoryLoadoutIfInLobbyWorld(event.getPlayer());
 
+        if (worldClassificationService.isLobbyOrLimboWorld(event.getPlayer().getWorld())) {
+            restoreDefaultMaxHealth.accept(event.getPlayer());
+        }
+
         if (worldClassificationService.isTrainingWorld(event.getPlayer().getWorld())) {
             prepBookService.removeFromInventory(event.getPlayer());
         }
@@ -489,5 +519,24 @@ public final class SessionPlayerLifecycleService {
                 onlineParticipantsSupplier.get(),
                 now,
                 sessionState.is(SessionState.Phase.RUNNING));
+    }
+
+    private void syncSharedInventoryFromOtherParticipant(UUID excludedPlayerId) {
+        if (!sessionState.is(SessionState.Phase.RUNNING) || !isSharedInventoryEnabled.getAsBoolean()) {
+            return;
+        }
+
+        for (Player participant : onlineParticipantsSupplier.get()) {
+            if (participant.getUniqueId().equals(excludedPlayerId)) {
+                continue;
+            }
+
+            if (participant.getGameMode() == GameMode.SPECTATOR) {
+                continue;
+            }
+
+            sharedInventorySyncService.syncSharedInventoryFromSourceNow(participant);
+            return;
+        }
     }
 }

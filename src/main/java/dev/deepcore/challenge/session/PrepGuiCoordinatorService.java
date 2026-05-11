@@ -1,14 +1,14 @@
 package dev.deepcore.challenge.session;
 
 import dev.deepcore.challenge.ChallengeManager;
-import dev.deepcore.challenge.PrepGuiPage;
 import dev.deepcore.challenge.preview.PreviewOrchestratorService;
+import dev.deepcore.challenge.records.RunRecord;
+import dev.deepcore.challenge.records.RunRecordsService;
 import dev.deepcore.challenge.ui.PrepBookService;
+import dev.deepcore.challenge.ui.PrepGuiPage;
 import dev.deepcore.challenge.ui.PrepGuiRenderer;
 import dev.deepcore.challenge.world.WorldResetManager;
 import dev.deepcore.logging.DeepCoreLogger;
-import dev.deepcore.records.RunRecord;
-import dev.deepcore.records.RunRecordsService;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
@@ -51,6 +51,8 @@ public final class PrepGuiCoordinatorService {
     private final BooleanSupplier isDiscoPreviewBlockingChallengeStart;
     private final Runnable announceDiscoPreviewStartBlocked;
     private final Runnable startRun;
+    private final BooleanSupplier savedRunExistsSupplier;
+    private final Runnable restoreSavedRunFlow;
     private final String prepGuiTitle;
     private final DateTimeFormatter runHistoryDateFormatter;
 
@@ -90,6 +92,10 @@ public final class PrepGuiCoordinatorService {
      *                                             block
      * @param startRun                             runnable that starts a challenge
      *                                             run
+     * @param savedRunExistsSupplier               supplier returning true when a
+     *                                             persistent saved run is available
+     * @param restoreSavedRunFlow                  runnable that triggers restore of
+     *                                             the saved run
      * @param prepGuiTitle                         prep GUI inventory title text
      * @param runHistoryDateFormatter              formatter for run history date
      *                                             labels
@@ -113,6 +119,8 @@ public final class PrepGuiCoordinatorService {
             BooleanSupplier isDiscoPreviewBlockingChallengeStart,
             Runnable announceDiscoPreviewStartBlocked,
             Runnable startRun,
+            BooleanSupplier savedRunExistsSupplier,
+            Runnable restoreSavedRunFlow,
             String prepGuiTitle,
             DateTimeFormatter runHistoryDateFormatter) {
         this.plugin = plugin;
@@ -133,6 +141,8 @@ public final class PrepGuiCoordinatorService {
         this.isDiscoPreviewBlockingChallengeStart = isDiscoPreviewBlockingChallengeStart;
         this.announceDiscoPreviewStartBlocked = announceDiscoPreviewStartBlocked;
         this.startRun = startRun;
+        this.savedRunExistsSupplier = savedRunExistsSupplier;
+        this.restoreSavedRunFlow = restoreSavedRunFlow;
         this.prepGuiTitle = prepGuiTitle;
         this.runHistoryDateFormatter = runHistoryDateFormatter;
     }
@@ -278,6 +288,11 @@ public final class PrepGuiCoordinatorService {
                 targetPage -> openPrepGui(player, targetPage),
                 player::closeInventory,
                 () -> {
+                    if (savedRunExistsSupplier.getAsBoolean()) {
+                        log.sendError(player, "Clear the saved run before regenerating worlds.");
+                        return;
+                    }
+
                     if (worldResetManagerSupplier.get() == null) {
                         log.sendError(player, "World reset manager is not available.");
                         return;
@@ -294,6 +309,10 @@ public final class PrepGuiCoordinatorService {
                 () -> {
                     player.closeInventory();
                     player.performCommand("challenge train");
+                },
+                () -> {
+                    player.closeInventory();
+                    restoreSavedRunFlow.run();
                 });
     }
 
@@ -371,7 +390,9 @@ public final class PrepGuiCoordinatorService {
                     readyPlayers.contains(player.getUniqueId()),
                     readyPlayers.size(),
                     participantsView.onlineCount(),
-                    previewOrchestratorService.isPreviewEnabled());
+                    previewOrchestratorService.isPreviewEnabled(),
+                    challengeManager.getDifficulty(),
+                    savedRunExistsSupplier.getAsBoolean());
             case INVENTORY -> prepGuiRenderer.populateInventoryPage(
                     inventory,
                     challengeManager,

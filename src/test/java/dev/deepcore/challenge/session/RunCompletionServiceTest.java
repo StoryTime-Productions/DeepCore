@@ -9,9 +9,10 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import dev.deepcore.challenge.ChallengeComponent;
+import dev.deepcore.challenge.records.RunRecordsService;
 import dev.deepcore.challenge.world.WorldResetManager;
 import dev.deepcore.logging.DeepCoreLogger;
-import dev.deepcore.records.RunRecordsService;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -41,6 +42,7 @@ class RunCompletionServiceTest {
                 Set.of(),
                 () -> null,
                 mock(Runnable.class),
+                List::of,
                 log);
 
         EntityDeathEvent event = mock(EntityDeathEvent.class);
@@ -68,6 +70,7 @@ class RunCompletionServiceTest {
                 Set.of(),
                 () -> null,
                 mock(Runnable.class),
+                List::of,
                 log);
 
         EntityDeathEvent event = mock(EntityDeathEvent.class);
@@ -90,7 +93,7 @@ class RunCompletionServiceTest {
         Runnable fallback = mock(Runnable.class);
 
         @SuppressWarnings("unchecked")
-        Supplier<dev.deepcore.records.RunRecordsService> recordsSupplier = () -> null;
+        Supplier<dev.deepcore.challenge.records.RunRecordsService> recordsSupplier = () -> null;
         Supplier<WorldResetManager> worldResetSupplier = () -> null;
 
         RunCompletionService service = newService(
@@ -101,6 +104,7 @@ class RunCompletionServiceTest {
                 Set.of(UUID.randomUUID()),
                 worldResetSupplier,
                 fallback,
+                List::of,
                 log);
 
         final Runnable[] onComplete = {null};
@@ -148,6 +152,7 @@ class RunCompletionServiceTest {
                 Set.of(),
                 () -> null,
                 mock(Runnable.class),
+                List::of,
                 mock(DeepCoreLogger.class));
 
         EntityDeathEvent event = mock(EntityDeathEvent.class);
@@ -155,7 +160,59 @@ class RunCompletionServiceTest {
 
         service.handleEntityDeath(event);
 
-        verify(recordsService).recordRun(anyLong(), eq(100L), eq(200L), eq(300L), eq(400L), eq(500L), eq(List.of()));
+        verify(recordsService)
+                .recordRun(
+                        anyLong(),
+                        eq(100L),
+                        eq(200L),
+                        eq(300L),
+                        eq(400L),
+                        eq(500L),
+                        eq(List.of()),
+                        eq(List.of()),
+                        eq("normal"));
+    }
+
+    @Test
+    void handleEntityDeath_recordsRunWithEnabledComponentKeys() {
+        SessionState sessionState = new SessionState();
+        sessionState.setPhase(SessionState.Phase.RUNNING);
+        sessionState.timing().beginRun(1_000L);
+
+        RunProgressService runProgressService = mock(RunProgressService.class);
+        CompletionReturnService completionReturnService = mock(CompletionReturnService.class);
+        RunRecordsService recordsService = mock(RunRecordsService.class);
+
+        when(runProgressService.calculateSectionDurations(anyLong(), anyLong(), anyLong()))
+                .thenReturn(new RunProgressService.SectionDurations(100L, 200L, 300L, 400L, 500L));
+
+        RunCompletionService service = newService(
+                sessionState,
+                runProgressService,
+                completionReturnService,
+                () -> recordsService,
+                Set.of(),
+                () -> null,
+                mock(Runnable.class),
+                () -> List.of(ChallengeComponent.SHARED_INVENTORY, ChallengeComponent.HARDCORE),
+                mock(DeepCoreLogger.class));
+
+        EntityDeathEvent event = mock(EntityDeathEvent.class);
+        when(event.getEntity()).thenReturn(mock(EnderDragon.class));
+
+        service.handleEntityDeath(event);
+
+        verify(recordsService)
+                .recordRun(
+                        anyLong(),
+                        eq(100L),
+                        eq(200L),
+                        eq(300L),
+                        eq(400L),
+                        eq(500L),
+                        eq(List.of()),
+                        eq(List.of("shared_inventory", "hardcore")),
+                        eq("normal"));
     }
 
     @Test
@@ -175,6 +232,7 @@ class RunCompletionServiceTest {
                 Set.of(),
                 () -> null,
                 mock(Runnable.class),
+                List::of,
                 mock(DeepCoreLogger.class));
 
         EntityDeathEvent event = mock(EntityDeathEvent.class);
@@ -183,7 +241,7 @@ class RunCompletionServiceTest {
         service.handleEntityDeath(event);
 
         verify(recordsService, never())
-                .recordRun(anyLong(), anyLong(), anyLong(), anyLong(), anyLong(), anyLong(), any());
+                .recordRun(anyLong(), anyLong(), anyLong(), anyLong(), anyLong(), anyLong(), any(), any(), any());
     }
 
     @Test
@@ -210,6 +268,7 @@ class RunCompletionServiceTest {
                 Set.of(),
                 () -> null,
                 mock(Runnable.class),
+                List::of,
                 mock(DeepCoreLogger.class));
 
         EntityDeathEvent event = mock(EntityDeathEvent.class);
@@ -227,10 +286,11 @@ class RunCompletionServiceTest {
             SessionState sessionState,
             RunProgressService runProgressService,
             CompletionReturnService completionReturnService,
-            Supplier<dev.deepcore.records.RunRecordsService> recordsServiceSupplier,
+            Supplier<dev.deepcore.challenge.records.RunRecordsService> recordsServiceSupplier,
             Set<UUID> participants,
             Supplier<WorldResetManager> worldResetManagerSupplier,
             Runnable endChallengeAndReturnToPrep,
+            Supplier<List<ChallengeComponent>> enabledComponentsSupplier,
             DeepCoreLogger log) {
         return new RunCompletionService(
                 sessionState,
@@ -240,6 +300,8 @@ class RunCompletionServiceTest {
                 participants,
                 worldResetManagerSupplier,
                 endChallengeAndReturnToPrep,
+                enabledComponentsSupplier,
+                () -> "normal",
                 log);
     }
 }

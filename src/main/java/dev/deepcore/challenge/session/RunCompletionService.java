@@ -1,5 +1,6 @@
 package dev.deepcore.challenge.session;
 
+import dev.deepcore.challenge.ChallengeComponent;
 import dev.deepcore.challenge.world.WorldResetManager;
 import dev.deepcore.logging.DeepCoreLogger;
 import java.util.ArrayList;
@@ -8,6 +9,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.EnderDragon;
@@ -22,10 +24,12 @@ public final class RunCompletionService {
     private final SessionState sessionState;
     private final RunProgressService runProgressService;
     private final CompletionReturnService completionReturnService;
-    private final Supplier<dev.deepcore.records.RunRecordsService> recordsServiceSupplier;
+    private final Supplier<dev.deepcore.challenge.records.RunRecordsService> recordsServiceSupplier;
     private final Set<UUID> participants;
     private final Supplier<WorldResetManager> worldResetManagerSupplier;
     private final Runnable endChallengeAndReturnToPrep;
+    private final Supplier<List<ChallengeComponent>> enabledComponentsSupplier;
+    private final Supplier<String> difficultyKeySupplier;
     private final DeepCoreLogger log;
 
     /**
@@ -38,16 +42,20 @@ public final class RunCompletionService {
      * @param participants                participant UUID set for current run
      * @param worldResetManagerSupplier   supplier for world reset manager
      * @param endChallengeAndReturnToPrep fallback action to return session to prep
+     * @param enabledComponentsSupplier   supplier returning currently enabled mechanics
+     * @param difficultyKeySupplier       supplier returning the current difficulty key
      * @param log                         logger for completion lifecycle messages
      */
     public RunCompletionService(
             SessionState sessionState,
             RunProgressService runProgressService,
             CompletionReturnService completionReturnService,
-            Supplier<dev.deepcore.records.RunRecordsService> recordsServiceSupplier,
+            Supplier<dev.deepcore.challenge.records.RunRecordsService> recordsServiceSupplier,
             Set<UUID> participants,
             Supplier<WorldResetManager> worldResetManagerSupplier,
             Runnable endChallengeAndReturnToPrep,
+            Supplier<List<ChallengeComponent>> enabledComponentsSupplier,
+            Supplier<String> difficultyKeySupplier,
             DeepCoreLogger log) {
         this.sessionState = sessionState;
         this.runProgressService = runProgressService;
@@ -56,6 +64,8 @@ public final class RunCompletionService {
         this.participants = participants;
         this.worldResetManagerSupplier = worldResetManagerSupplier;
         this.endChallengeAndReturnToPrep = endChallengeAndReturnToPrep;
+        this.enabledComponentsSupplier = enabledComponentsSupplier;
+        this.difficultyKeySupplier = difficultyKeySupplier;
         this.log = log;
     }
 
@@ -82,7 +92,7 @@ public final class RunCompletionService {
     }
 
     private void recordRunIfAvailable(long dragonDeathTime) {
-        dev.deepcore.records.RunRecordsService recordsService = recordsServiceSupplier.get();
+        dev.deepcore.challenge.records.RunRecordsService recordsService = recordsServiceSupplier.get();
         if (recordsService == null || sessionState.timing().getRunStartMillis() <= 0L) {
             return;
         }
@@ -91,6 +101,10 @@ public final class RunCompletionService {
         RunProgressService.SectionDurations sectionDurations = runProgressService.calculateSectionDurations(
                 sessionState.timing().getRunStartMillis(), dragonDeathTime, overallTimeMs);
 
+        List<String> componentKeys = enabledComponentsSupplier.get().stream()
+                .map(ChallengeComponent::key)
+                .collect(Collectors.toList());
+
         recordsService.recordRun(
                 overallTimeMs,
                 sectionDurations.overworldToNetherMs(),
@@ -98,7 +112,9 @@ public final class RunCompletionService {
                 sectionDurations.blazeRodsToEndMs(),
                 sectionDurations.netherToEndMs(),
                 sectionDurations.endToDragonMs(),
-                getParticipantNamesForRecord());
+                getParticipantNamesForRecord(),
+                componentKeys,
+                difficultyKeySupplier.get());
     }
 
     private void startCompletionReturnCountdown() {

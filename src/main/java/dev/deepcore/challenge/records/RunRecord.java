@@ -1,4 +1,4 @@
-package dev.deepcore.records;
+package dev.deepcore.challenge.records;
 
 import java.util.Arrays;
 import java.util.List;
@@ -21,9 +21,12 @@ public class RunRecord {
     private final long netherToEndMs;
     private final long endToDragonMs;
     private final String participantsCsv;
+    private final String componentsCsv;
+    private final String difficulty;
 
     /**
-     * Creates a run record snapshot with split timings and participant names.
+     * Creates a run record snapshot with split timings, participant names, and
+     * enabled mechanics.
      *
      * @param timestamp           record timestamp in epoch milliseconds
      * @param overallTimeMs       total run completion time in milliseconds
@@ -33,6 +36,8 @@ public class RunRecord {
      * @param netherToEndMs       elapsed time from first nether entry to end entry
      * @param endToDragonMs       elapsed time from end entry to dragon defeat
      * @param participantsCsv     comma-separated participant names
+     * @param componentsCsv       comma-separated enabled component keys
+     * @param difficulty          difficulty key for the run (easy/normal/hard)
      */
     public RunRecord(
             long timestamp,
@@ -42,7 +47,9 @@ public class RunRecord {
             long blazeRodsToEndMs,
             long netherToEndMs,
             long endToDragonMs,
-            String participantsCsv) {
+            String participantsCsv,
+            String componentsCsv,
+            String difficulty) {
         this.timestamp = timestamp;
         this.overallTimeMs = overallTimeMs;
         this.overworldToNetherMs = overworldToNetherMs;
@@ -51,6 +58,8 @@ public class RunRecord {
         this.netherToEndMs = netherToEndMs;
         this.endToDragonMs = endToDragonMs;
         this.participantsCsv = participantsCsv == null ? "" : participantsCsv;
+        this.componentsCsv = componentsCsv == null ? "" : componentsCsv;
+        this.difficulty = difficulty == null ? "" : difficulty;
     }
 
     public long getTimestamp() {
@@ -96,6 +105,30 @@ public class RunRecord {
                 .collect(Collectors.toList());
     }
 
+    public String getComponentsCsv() {
+        return componentsCsv;
+    }
+
+    public String getDifficulty() {
+        return difficulty;
+    }
+
+    /**
+     * Returns the enabled component keys stored in this record.
+     *
+     * @return list of enabled challenge component keys, empty for standard runs
+     */
+    public List<String> getComponentKeys() {
+        if (componentsCsv.isBlank()) {
+            return List.of();
+        }
+
+        return Arrays.stream(componentsCsv.split(","))
+                .map(String::trim)
+                .filter(key -> !key.isEmpty())
+                .collect(Collectors.toList());
+    }
+
     @Override
     public String toString() {
         return "RunRecord{" + "timestamp="
@@ -106,6 +139,8 @@ public class RunRecord {
                 + blazeRodsToEndMs + ", netherToEndMs="
                 + netherToEndMs + ", endToDragonMs="
                 + endToDragonMs + ", participantsCsv='"
-                + participantsCsv + '\'' + "}";
+                + participantsCsv + "', componentsCsv='"
+                + componentsCsv + "', difficulty='"
+                + difficulty + '\'' + "}";
     }
 }

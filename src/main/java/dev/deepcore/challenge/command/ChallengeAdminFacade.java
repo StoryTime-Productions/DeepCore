@@ -1,12 +1,17 @@
-package dev.deepcore.challenge;
+package dev.deepcore.challenge.command;
 
 import dev.deepcore.DeepCorePlugin;
+import dev.deepcore.challenge.ChallengeComponent;
+import dev.deepcore.challenge.ChallengeManager;
+import dev.deepcore.challenge.ChallengeMode;
+import dev.deepcore.challenge.ChallengeSessionManager;
 import dev.deepcore.challenge.training.TrainingManager;
 import dev.deepcore.challenge.world.WorldResetManager;
 import dev.deepcore.logging.DeepCoreLogger;
 import java.util.Map;
 import org.bukkit.World;
 import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Player;
 
 /**
  * Facade for challenge command orchestration across manager/session/world
@@ -166,6 +171,26 @@ public final class ChallengeAdminFacade {
      */
     public boolean resumeChallenge(CommandSender sender) {
         return challengeSessionManager.resumeChallenge(sender);
+    }
+
+    /**
+     * Records a save-run vote from the given player.
+     *
+     * @param voter player casting the vote
+     * @return false when the vote was rejected
+     */
+    public boolean castSaveVote(Player voter) {
+        return challengeSessionManager.castSaveVote(voter);
+    }
+
+    /**
+     * Restores a previously saved run.
+     *
+     * @param sender command sender requesting the restore
+     * @return true when restore was accepted and applied
+     */
+    public boolean restoreSavedRun(CommandSender sender) {
+        return challengeSessionManager.restoreSavedRun(sender);
     }
 
     /**

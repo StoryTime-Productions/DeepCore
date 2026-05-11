@@ -49,6 +49,9 @@ challenge:
     initial_half_heart: false
     degrading_inventory: false
 
+records:
+  db-name: records.db
+
 prep:
   countdown-seconds: 10
 

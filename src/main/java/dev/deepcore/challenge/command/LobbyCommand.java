@@ -1,5 +1,6 @@
-package dev.deepcore.challenge;
+package dev.deepcore.challenge.command;
 
+import dev.deepcore.challenge.ChallengeSessionManager;
 import dev.deepcore.challenge.training.TrainingManager;
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;

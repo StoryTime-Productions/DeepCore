@@ -79,7 +79,7 @@ class ChallengeSessionManagerSmokeTest {
 
             WorldResetManager worldResetManager = mock(WorldResetManager.class);
             manager.setWorldResetManager(worldResetManager);
-            manager.setRecordsService(mock(dev.deepcore.records.RunRecordsService.class));
+            manager.setRecordsService(mock(dev.deepcore.challenge.records.RunRecordsService.class));
 
             manager.initialize();
             manager.registerEventListeners();
@@ -177,7 +177,8 @@ class ChallengeSessionManagerSmokeTest {
         try (MockedConstruction<NamespacedKey> ignored = org.mockito.Mockito.mockConstruction(NamespacedKey.class)) {
             ChallengeSessionManager manager = new ChallengeSessionManager(plugin, challengeManager);
             WorldResetManager worldResetManager = mock(WorldResetManager.class);
-            dev.deepcore.records.RunRecordsService recordsService = mock(dev.deepcore.records.RunRecordsService.class);
+            dev.deepcore.challenge.records.RunRecordsService recordsService =
+                    mock(dev.deepcore.challenge.records.RunRecordsService.class);
 
             manager.setWorldResetManager(worldResetManager);
             manager.setRecordsService(recordsService);

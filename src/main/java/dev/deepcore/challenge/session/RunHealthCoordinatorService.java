@@ -88,7 +88,8 @@ public final class RunHealthCoordinatorService {
             return;
         }
 
-        if (!challengeManager.isComponentEnabled(ChallengeComponent.HEALTH_REFILL)) {
+        if (!challengeManager.isComponentEnabled(ChallengeComponent.HEALTH_REFILL)
+                && event.getRegainReason() == EntityRegainHealthEvent.RegainReason.SATIATED) {
             event.setCancelled(true);
             return;
         }

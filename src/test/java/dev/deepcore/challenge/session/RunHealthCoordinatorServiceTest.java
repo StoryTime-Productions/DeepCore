@@ -94,10 +94,43 @@ class RunHealthCoordinatorServiceTest {
 
         EntityRegainHealthEvent event = mock(EntityRegainHealthEvent.class);
         when(event.getEntity()).thenReturn(player);
+        when(event.getRegainReason()).thenReturn(EntityRegainHealthEvent.RegainReason.SATIATED);
 
         service.handleEntityRegainHealth(event);
 
         verify(event).setCancelled(true);
+    }
+
+    @Test
+    void handleEntityRegainHealth_healthRefillDisabled_allowsStatusEffectRegen() {
+        ChallengeManager challengeManager = mock(ChallengeManager.class);
+        SharedVitalsService sharedVitals = mock(SharedVitalsService.class);
+        Player player = mock(Player.class);
+
+        when(challengeManager.isComponentEnabled(ChallengeComponent.INITIAL_HALF_HEART))
+                .thenReturn(false);
+        when(challengeManager.isComponentEnabled(ChallengeComponent.HEALTH_REFILL))
+                .thenReturn(false);
+
+        RunHealthCoordinatorService service = newService(
+                challengeManager,
+                () -> sharedVitals,
+                () -> List.of(player),
+                p -> true,
+                () -> false,
+                p -> {},
+                1.0D,
+                20.0D);
+
+        EntityRegainHealthEvent event = mock(EntityRegainHealthEvent.class);
+        when(event.getEntity()).thenReturn(player);
+        when(event.getRegainReason()).thenReturn(EntityRegainHealthEvent.RegainReason.MAGIC_REGEN);
+
+        service.handleEntityRegainHealth(event);
+
+        // Status effect regen (e.g. Regeneration potion) must not be blocked when
+        // only natural (SATIATED) regen is disabled.
+        verify(event, never()).setCancelled(true);
     }
 
     @Test

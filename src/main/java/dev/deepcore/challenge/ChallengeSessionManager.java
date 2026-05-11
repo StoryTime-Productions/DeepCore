@@ -30,10 +30,12 @@ import dev.deepcore.challenge.session.RunCompletionService;
 import dev.deepcore.challenge.session.RunHealthCoordinatorService;
 import dev.deepcore.challenge.session.RunPauseResumeService;
 import dev.deepcore.challenge.session.RunProgressService;
+import dev.deepcore.challenge.session.RunSaveVoteService;
 import dev.deepcore.challenge.session.RunStartGuardService;
 import dev.deepcore.challenge.session.RunStartService;
 import dev.deepcore.challenge.session.RunStatusService;
 import dev.deepcore.challenge.session.RunUiFormattingService;
+import dev.deepcore.challenge.session.SavedRunStateService;
 import dev.deepcore.challenge.session.SessionFailureService;
 import dev.deepcore.challenge.session.SessionOperationService;
 import dev.deepcore.challenge.session.SessionParticipantContextService;
@@ -56,11 +58,15 @@ import dev.deepcore.challenge.world.WorldStorageService;
 import dev.deepcore.logging.DeepCoreLogger;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -133,6 +139,8 @@ public final class ChallengeSessionManager implements ChallengeSessionWorldBridg
     private final SessionTransitionOrchestratorService sessionTransitionOrchestratorService;
     private final ChallengeEventRegistrar challengeEventRegistrar;
     private final RunPauseResumeService runPauseResumeService;
+    private final SavedRunStateService savedRunStateService;
+    private final RunSaveVoteService runSaveVoteService;
     private final DegradingInventoryTickerService degradingInventoryTickerService;
     private final SessionUiCoordinatorService sessionUiCoordinatorService;
     private final SidebarModelFactory sidebarModelFactory;
@@ -142,7 +150,7 @@ public final class ChallengeSessionManager implements ChallengeSessionWorldBridg
     private final CompletionReturnService completionReturnService;
     private final TaskGroup taskGroup;
     private WorldResetManager worldResetManager;
-    private dev.deepcore.records.RunRecordsService recordsService;
+    private dev.deepcore.challenge.records.RunRecordsService recordsService;
 
     private final SessionState sessionState;
 
@@ -302,6 +310,9 @@ public final class ChallengeSessionManager implements ChallengeSessionWorldBridg
                 prepCountdownService,
                 worldClassificationService,
                 log);
+        this.savedRunStateService = new SavedRunStateService(plugin, log);
+        this.runSaveVoteService =
+                new RunSaveVoteService(plugin, log, sessionParticipantContextService::getOnlineParticipants);
         this.prepSettingsService =
                 new PrepSettingsService(challengeManager, this::syncWorldRules, this::applySharedVitalsIfEnabled);
         this.prepGuiFlowService =
@@ -325,6 +336,8 @@ public final class ChallengeSessionManager implements ChallengeSessionWorldBridg
                 runStartGuardService::isDiscoPreviewBlockingChallengeStart,
                 runStartGuardService::announceDiscoPreviewStartBlocked,
                 this::startRun,
+                savedRunStateService::hasSavedRun,
+                () -> restoreSavedRun(org.bukkit.Bukkit.getConsoleSender()),
                 PREP_GUI_TITLE,
                 RUN_HISTORY_DATE_FORMATTER);
         this.lobbySidebarCoordinatorService = new LobbySidebarCoordinatorService(
@@ -352,6 +365,11 @@ public final class ChallengeSessionManager implements ChallengeSessionWorldBridg
                 participants,
                 () -> worldResetManager,
                 this::endChallengeAndReturnToPrep,
+                () -> challengeManager.getComponentToggles().entrySet().stream()
+                        .filter(Map.Entry::getValue)
+                        .map(Map.Entry::getKey)
+                        .collect(Collectors.toList()),
+                () -> challengeManager.getDifficulty().key(),
                 log);
         this.respawnRoutingService = new RespawnRoutingService(
                 () -> worldResetManager,
@@ -474,7 +492,7 @@ public final class ChallengeSessionManager implements ChallengeSessionWorldBridg
         this.worldResetManager = worldResetManager;
     }
 
-    public void setRecordsService(dev.deepcore.records.RunRecordsService recordsService) {
+    public void setRecordsService(dev.deepcore.challenge.records.RunRecordsService recordsService) {
         this.recordsService = recordsService;
     }
 
@@ -589,6 +607,156 @@ public final class ChallengeSessionManager implements ChallengeSessionWorldBridg
      */
     public boolean resumeChallenge(CommandSender sender) {
         return runPauseResumeService.resume(sender);
+    }
+
+    /**
+     * Records a vote from the given player to save the current run.
+     * When all online participants have voted, saves the run to disk and returns to prep.
+     *
+     * @param voter player casting the save vote
+     * @return false when the vote was rejected (not a participant, already voted, etc.)
+     */
+    public boolean castSaveVote(Player voter) {
+        if (!sessionState.is(SessionState.Phase.RUNNING)) {
+            log.sendError(voter, "Can only vote to save during an active run.");
+            return false;
+        }
+        return runSaveVoteService.castVote(voter, this::saveRunAndReturnToPrep);
+    }
+
+    /**
+     * Restores a previously saved run, applying snapshots to online participants
+     * and resuming from the saved phase.
+     *
+     * @param sender command sender requesting the restore
+     * @return true when the restore was accepted and applied
+     */
+    public boolean restoreSavedRun(CommandSender sender) {
+        if (!sessionState.is(SessionState.Phase.PREP)) {
+            log.sendError(sender, "Can only restore a saved run during prep phase.");
+            return false;
+        }
+
+        Optional<SavedRunStateService.SavedRunSnapshot> optSnapshot = savedRunStateService.loadSavedRun();
+        if (optSnapshot.isEmpty()) {
+            log.sendError(sender, "No saved run found.");
+            return false;
+        }
+
+        SavedRunStateService.SavedRunSnapshot snapshot = optSnapshot.get();
+
+        Set<UUID> savedIds = new HashSet<>();
+        for (String uuidStr : snapshot.participantUuids()) {
+            try {
+                savedIds.add(UUID.fromString(uuidStr));
+            } catch (IllegalArgumentException ignored) {
+            }
+        }
+
+        List<Player> online = new ArrayList<>();
+        for (UUID uuid : savedIds) {
+            Player p = org.bukkit.Bukkit.getPlayer(uuid);
+            if (p != null) {
+                online.add(p);
+            }
+        }
+
+        if (online.isEmpty()) {
+            log.sendError(sender, "No saved participants are currently online.");
+            return false;
+        }
+
+        participants.clear();
+        for (Player p : online) {
+            participants.add(p.getUniqueId());
+        }
+        readyPlayers.clear();
+
+        sessionState.timing().restore(snapshot.runStartMs(), snapshot.accumulatedPausedMs(), snapshot.savedAtMs());
+        runProgressService.restore(
+                snapshot.reachedNether(), snapshot.netherMs(),
+                snapshot.reachedBlazeObjective(), snapshot.blazeObjectiveMs(),
+                snapshot.reachedEnd(), snapshot.endMs());
+
+        if (!challengeManager.isEnabled()) {
+            challengeManager.setEnabled(true);
+        }
+        sessionState.setPhase(SessionState.Phase.RUNNING);
+        sessionOperationService.clearPausedSnapshots();
+        syncWorldRules();
+        prepAreaService.clearBorders();
+        previewOrchestratorService.clearLobbyPreviewEntities();
+        runStatusService.reset();
+
+        for (Player p : online) {
+            SavedRunStateService.PlayerSnapshot ps =
+                    snapshot.playerSnapshots().get(p.getUniqueId().toString());
+            if (ps != null) {
+                SavedRunStateService.applySnapshot(p, ps);
+            }
+            prepBookService.removeFromInventory(p);
+        }
+        for (Player all : org.bukkit.Bukkit.getOnlinePlayers()) {
+            sessionOperationService.clearLobbySidebar(all);
+        }
+
+        sessionOperationService.startActionBarTask();
+        sessionOperationService.snapshotEquippedWearablesForParticipants();
+
+        savedRunStateService.clearSavedRun();
+        sessionOperationService.refreshOpenPrepGuis();
+
+        org.bukkit.Bukkit.broadcastMessage(ChatColor.GOLD + "[DeepCore] " + ChatColor.GREEN + "Saved run restored! "
+                + online.size() + " participant(s) back in action.");
+        return true;
+    }
+
+    private void saveRunAndReturnToPrep() {
+        if (!sessionState.is(SessionState.Phase.RUNNING)) {
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+        long runStartMs = sessionState.timing().getRunStartMillis();
+        long accumulatedPausedMs = sessionState.timing().getAccumulatedPausedMillis();
+
+        List<String> participantUuids =
+                participants.stream().map(UUID::toString).collect(Collectors.toList());
+
+        List<String> enabledComponents = challengeManager.getComponentToggles().entrySet().stream()
+                .filter(Map.Entry::getValue)
+                .map(e -> e.getKey().key())
+                .collect(Collectors.toList());
+
+        Map<String, SavedRunStateService.PlayerSnapshot> playerSnapshots = new HashMap<>();
+        for (UUID uuid : participants) {
+            Player p = org.bukkit.Bukkit.getPlayer(uuid);
+            if (p != null) {
+                playerSnapshots.put(uuid.toString(), SavedRunStateService.capturePlayer(p));
+            }
+        }
+
+        SavedRunStateService.SavedRunSnapshot snapshot = new SavedRunStateService.SavedRunSnapshot(
+                now,
+                runStartMs,
+                accumulatedPausedMs,
+                runProgressService.hasReachedNether(),
+                runProgressService.getNetherReachedMillis(),
+                runProgressService.hasReachedBlazeObjective(),
+                runProgressService.getBlazeObjectiveReachedMillis(),
+                runProgressService.hasReachedEnd(),
+                runProgressService.getEndReachedMillis(),
+                participantUuids,
+                enabledComponents,
+                challengeManager.getDifficulty().key(),
+                playerSnapshots);
+
+        savedRunStateService.saveRun(snapshot);
+        runSaveVoteService.clearVotes();
+
+        org.bukkit.Bukkit.broadcastMessage(ChatColor.GOLD + "[DeepCore] " + ChatColor.GREEN
+                + "Run saved to disk! Returning to prep. Use /challenge restore to resume.");
+        endChallengeAndReturnToPrep();
     }
 
     /**

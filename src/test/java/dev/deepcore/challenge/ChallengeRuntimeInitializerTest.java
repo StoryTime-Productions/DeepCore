@@ -8,10 +8,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import dev.deepcore.DeepCorePlugin;
+import dev.deepcore.challenge.command.ChallengeCommand;
+import dev.deepcore.challenge.records.RunRecordsService;
 import dev.deepcore.challenge.training.TrainingManager;
 import dev.deepcore.challenge.world.WorldResetManager;
 import dev.deepcore.logging.DeepCoreLogger;
-import dev.deepcore.records.RunRecordsService;
 import org.bukkit.command.PluginCommand;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedConstruction;
@@ -28,6 +29,7 @@ class ChallengeRuntimeInitializerTest {
         when(plugin.getCommand("challenge")).thenReturn(challengeCommandBinding);
         when(plugin.getCommand("lobby")).thenReturn(lobbyCommandBinding);
         when(plugin.getDeepCoreLogger()).thenReturn(logger);
+        when(plugin.getConfig()).thenReturn(mock(org.bukkit.configuration.file.FileConfiguration.class));
 
         try (MockedConstruction<ChallengeManager> managerConstruction =
                         org.mockito.Mockito.mockConstruction(ChallengeManager.class);
@@ -84,6 +86,7 @@ class ChallengeRuntimeInitializerTest {
 
         when(plugin.getCommand("challenge")).thenReturn(null);
         when(plugin.getCommand("lobby")).thenReturn(mock(PluginCommand.class));
+        when(plugin.getConfig()).thenReturn(mock(org.bukkit.configuration.file.FileConfiguration.class));
 
         try (MockedConstruction<ChallengeManager> managerConstruction =
                         org.mockito.Mockito.mockConstruction(ChallengeManager.class);
@@ -108,6 +111,7 @@ class ChallengeRuntimeInitializerTest {
 
         when(plugin.getCommand("challenge")).thenReturn(mock(PluginCommand.class));
         when(plugin.getCommand("lobby")).thenReturn(null);
+        when(plugin.getConfig()).thenReturn(mock(org.bukkit.configuration.file.FileConfiguration.class));
 
         try (MockedConstruction<ChallengeManager> managerConstruction =
                         org.mockito.Mockito.mockConstruction(ChallengeManager.class);

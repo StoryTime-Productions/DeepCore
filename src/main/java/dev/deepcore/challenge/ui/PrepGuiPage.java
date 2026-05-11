@@ -1,4 +1,4 @@
-package dev.deepcore.challenge;
+package dev.deepcore.challenge.ui;
 
 /**
  * Prep GUI page identifiers.

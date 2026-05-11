@@ -1,8 +1,8 @@
 package dev.deepcore.challenge;
 
+import dev.deepcore.challenge.records.RunRecordsService;
 import dev.deepcore.challenge.training.TrainingManager;
 import dev.deepcore.challenge.world.WorldResetManager;
-import dev.deepcore.records.RunRecordsService;
 
 /**
  * Holds initialized challenge runtime services for plugin lifecycle access.

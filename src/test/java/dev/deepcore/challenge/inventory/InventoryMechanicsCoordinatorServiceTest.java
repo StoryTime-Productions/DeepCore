@@ -1,8 +1,10 @@
 package dev.deepcore.challenge.inventory;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -24,6 +26,7 @@ import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
 import org.bukkit.entity.AbstractArrow;
+import org.bukkit.entity.Boat;
 import org.bukkit.entity.Egg;
 import org.bukkit.entity.EnderPearl;
 import org.bukkit.entity.ItemFrame;
@@ -37,6 +40,7 @@ import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockMultiPlaceEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityPickupItemEvent;
+import org.bukkit.event.entity.EntityPlaceEvent;
 import org.bukkit.event.entity.EntityResurrectEvent;
 import org.bukkit.event.entity.ProjectileLaunchEvent;
 import org.bukkit.event.inventory.CraftItemEvent;
@@ -126,6 +130,56 @@ class InventoryMechanicsCoordinatorServiceTest {
     }
 
     @Test
+    void handleInventoryClick_schedulesWearableDetectBeforeInventorySync() {
+        // When a player shift-clicks armor into an equipment slot, both wearable detect
+        // and the full inventory sync are deferred to the next tick via runTask. Bukkit
+        // executes runTask callbacks in FIFO order, so the wearable detect must be
+        // scheduled first. If the sync fires first it clears the equip source slot on
+        // other participants before the consume runs; the fallback search then removes
+        // the wrong item (e.g. the second set's piece instead of the equipped one).
+        JavaPlugin plugin = mock(JavaPlugin.class);
+        ChallengeManager challengeManager = mock(ChallengeManager.class);
+        DegradingInventoryService degradingService = mock(DegradingInventoryService.class);
+        SharedInventorySyncService sharedService = mock(SharedInventorySyncService.class);
+
+        UUID playerId = UUID.randomUUID();
+        Player player = mock(Player.class);
+        PlayerInventory inventory = mock(PlayerInventory.class);
+        when(player.getUniqueId()).thenReturn(playerId);
+        when(player.getInventory()).thenReturn(inventory);
+
+        ItemStack chestplate = new ItemStack(Material.IRON_CHESTPLATE);
+        InventoryClickEvent event = mock(InventoryClickEvent.class);
+        when(event.getWhoClicked()).thenReturn(player);
+        when(event.getAction()).thenReturn(org.bukkit.event.inventory.InventoryAction.MOVE_TO_OTHER_INVENTORY);
+        when(event.getClickedInventory()).thenReturn(inventory);
+        when(event.getCurrentItem()).thenReturn(chestplate);
+        when(event.getSlot()).thenReturn(1);
+
+        InventoryMechanicsCoordinatorService service = new InventoryMechanicsCoordinatorService(
+                plugin,
+                challengeManager,
+                degradingService,
+                sharedService,
+                p -> true,
+                () -> true,
+                List::of,
+                p -> {},
+                mock(DeepCoreLogger.class));
+
+        BukkitScheduler scheduler = mock(BukkitScheduler.class);
+        try (MockedStatic<Bukkit> bukkit = org.mockito.Mockito.mockStatic(Bukkit.class)) {
+            bukkit.when(Bukkit::getScheduler).thenReturn(scheduler);
+            service.handleInventoryClick(event);
+        }
+
+        // requestWearableEquipSync must be called before scheduler.runTask so that
+        // detectNewlyEquippedWearables is queued ahead of requestSharedInventorySync
+        inOrder(sharedService, scheduler).verify(sharedService).requestWearableEquipSync(eq(player), eq(1));
+        inOrder(sharedService, scheduler).verify(scheduler).runTask(eq(plugin), any(Runnable.class));
+    }
+
+    @Test
     void handleInventoryEvents_scheduleCapAndRequestSyncs_whenEligible() {
         JavaPlugin plugin = mock(JavaPlugin.class);
         ChallengeManager challengeManager = mock(ChallengeManager.class);
@@ -134,13 +188,19 @@ class InventoryMechanicsCoordinatorServiceTest {
         @SuppressWarnings("unchecked")
         Consumer<Player> enforceCap = mock(Consumer.class);
 
+        UUID playerId = UUID.randomUUID();
         Player player = mock(Player.class);
+        when(player.getUniqueId()).thenReturn(playerId);
+
         InventoryClickEvent clickEvent = mock(InventoryClickEvent.class);
         InventoryCreativeEvent creativeEvent = mock(InventoryCreativeEvent.class);
         CraftItemEvent craftEvent = mock(CraftItemEvent.class);
         PlayerItemConsumeEvent consumeEvent = mock(PlayerItemConsumeEvent.class);
         BlockPlaceEvent placeEvent = mock(BlockPlaceEvent.class);
         BlockMultiPlaceEvent multiPlaceEvent = mock(BlockMultiPlaceEvent.class);
+        EntityPlaceEvent entityPlaceEvent = mock(EntityPlaceEvent.class);
+        Boat boatEntity = mock(Boat.class);
+        when(boatEntity.getBoatType()).thenReturn(Boat.Type.OAK);
 
         when(clickEvent.getWhoClicked()).thenReturn(player);
         when(creativeEvent.getWhoClicked()).thenReturn(player);
@@ -148,6 +208,8 @@ class InventoryMechanicsCoordinatorServiceTest {
         when(consumeEvent.getPlayer()).thenReturn(player);
         when(placeEvent.getPlayer()).thenReturn(player);
         when(multiPlaceEvent.getPlayer()).thenReturn(player);
+        when(entityPlaceEvent.getPlayer()).thenReturn(player);
+        when(entityPlaceEvent.getEntity()).thenReturn(boatEntity);
 
         when(challengeManager.isComponentEnabled(ChallengeComponent.DEGRADING_INVENTORY))
                 .thenReturn(true);
@@ -173,6 +235,13 @@ class InventoryMechanicsCoordinatorServiceTest {
                     })
                     .when(scheduler)
                     .runTask(eq(plugin), any(Runnable.class));
+            doAnswer(invocation -> {
+                        Runnable task = invocation.getArgument(1);
+                        task.run();
+                        return null;
+                    })
+                    .when(scheduler)
+                    .runTaskLater(eq(plugin), any(Runnable.class), eq(1L));
 
             service.handleInventoryClick(clickEvent);
             service.handleInventoryCreative(creativeEvent);
@@ -180,11 +249,32 @@ class InventoryMechanicsCoordinatorServiceTest {
             service.handlePlayerItemConsume(consumeEvent);
             service.handleBlockPlace(placeEvent);
             service.handleBlockMultiPlace(multiPlaceEvent);
+            service.handleEntityPlace(entityPlaceEvent);
         }
 
-        verify(enforceCap, org.mockito.Mockito.times(6)).accept(player);
+        verify(enforceCap, org.mockito.Mockito.times(7)).accept(player);
         verify(sharedService, org.mockito.Mockito.times(6)).requestSharedInventorySync(player);
-        verify(sharedService, org.mockito.Mockito.times(2)).requestWearableEquipSync(player);
+        verify(sharedService).consumeItemFromOtherParticipants(Material.OAK_BOAT, playerId);
+        verify(sharedService, org.mockito.Mockito.times(2)).requestWearableEquipSync(eq(player), anyInt());
+    }
+
+    @Test
+    void handleEntityPlace_ignoresNullPlayer() {
+        InventoryMechanicsCoordinatorService service = new InventoryMechanicsCoordinatorService(
+                mock(JavaPlugin.class),
+                mock(ChallengeManager.class),
+                mock(DegradingInventoryService.class),
+                mock(SharedInventorySyncService.class),
+                p -> true,
+                () -> true,
+                List::of,
+                p -> {},
+                mock(DeepCoreLogger.class));
+
+        EntityPlaceEvent event = mock(EntityPlaceEvent.class);
+        when(event.getPlayer()).thenReturn(null);
+
+        service.handleEntityPlace(event);
     }
 
     @Test
@@ -308,6 +398,51 @@ class InventoryMechanicsCoordinatorServiceTest {
     }
 
     @Test
+    void handleInventoryDrag_defersSyncToNextTick_likeInventoryClick() {
+        // InventoryDragEvent fires before Bukkit distributes items into dragged slots,
+        // so the sync must be deferred to the next tick (runTask). Calling
+        // requestSharedInventorySync immediately would broadcast pre-drag state.
+        JavaPlugin plugin = mock(JavaPlugin.class);
+        ChallengeManager challengeManager = mock(ChallengeManager.class);
+        DegradingInventoryService degradingService = mock(DegradingInventoryService.class);
+        SharedInventorySyncService sharedService = mock(SharedInventorySyncService.class);
+
+        Player player = mock(Player.class);
+        PlayerInventory inventory = mock(PlayerInventory.class);
+        when(player.getInventory()).thenReturn(inventory);
+        when(player.getUniqueId()).thenReturn(UUID.randomUUID());
+
+        InventoryDragEvent event = mock(InventoryDragEvent.class);
+        when(event.getWhoClicked()).thenReturn(player);
+        when(event.getOldCursor()).thenReturn(new ItemStack(Material.STONE));
+        when(event.getNewItems()).thenReturn(java.util.Map.of());
+        when(event.getRawSlots()).thenReturn(java.util.Set.of(1, 2));
+        when(degradingService.isBarrierProtectionActive(player)).thenReturn(false);
+
+        InventoryMechanicsCoordinatorService service = new InventoryMechanicsCoordinatorService(
+                plugin,
+                challengeManager,
+                degradingService,
+                sharedService,
+                p -> true,
+                () -> true,
+                List::of,
+                p -> {},
+                mock(DeepCoreLogger.class));
+
+        BukkitScheduler scheduler = mock(BukkitScheduler.class);
+        try (MockedStatic<Bukkit> bukkit = org.mockito.Mockito.mockStatic(Bukkit.class)) {
+            bukkit.when(Bukkit::getScheduler).thenReturn(scheduler);
+            service.handleInventoryDrag(event);
+        }
+
+        // Sync must not be called synchronously — Bukkit hasn't applied the drag yet
+        verify(sharedService, never()).requestSharedInventorySync(any());
+        // A runTask (next-tick deferred) call must have been scheduled instead
+        verify(scheduler).runTask(eq(plugin), any(Runnable.class));
+    }
+
+    @Test
     void handlePotentialWearableUse_supportsOffHandEquip_afterEquipmentChangeConfirmation() {
         JavaPlugin plugin = mock(JavaPlugin.class);
         ChallengeManager challengeManager = mock(ChallengeManager.class);
@@ -351,7 +486,8 @@ class InventoryMechanicsCoordinatorServiceTest {
             service.handlePlayerArmorChanged(equipmentEvent);
         }
 
-        verify(sharedService).consumeWearableFromOtherParticipants(Material.DIAMOND_HELMET, playerId);
+        // Off-hand equip: sourceInventorySlot is hardcoded to 40 for the off-hand slot
+        verify(sharedService).consumeWearableFromOtherParticipants(Material.DIAMOND_HELMET, playerId, 40);
         verify(sharedService).capturePlayerWearableSnapshot(player);
     }
 
@@ -639,6 +775,13 @@ class InventoryMechanicsCoordinatorServiceTest {
                     })
                     .when(scheduler)
                     .runTask(eq(plugin), any(Runnable.class));
+            doAnswer(invocation -> {
+                        Runnable task = invocation.getArgument(1);
+                        task.run();
+                        return null;
+                    })
+                    .when(scheduler)
+                    .runTaskLater(eq(plugin), any(Runnable.class), eq(1L));
 
             service.handleEntityPickupItem(event);
         }
@@ -684,6 +827,13 @@ class InventoryMechanicsCoordinatorServiceTest {
                     })
                     .when(scheduler)
                     .runTask(eq(plugin), any(Runnable.class));
+            doAnswer(invocation -> {
+                        Runnable task = invocation.getArgument(1);
+                        task.run();
+                        return null;
+                    })
+                    .when(scheduler)
+                    .runTaskLater(eq(plugin), any(Runnable.class), eq(1L));
 
             service.handlePlayerPickupArrow(event);
         }
@@ -749,6 +899,13 @@ class InventoryMechanicsCoordinatorServiceTest {
                     })
                     .when(scheduler)
                     .runTask(eq(plugin), any(Runnable.class));
+            doAnswer(invocation -> {
+                        Runnable task = invocation.getArgument(1);
+                        task.run();
+                        return null;
+                    })
+                    .when(scheduler)
+                    .runTaskLater(eq(plugin), any(Runnable.class), eq(1L));
 
             service.handlePlayerDropItem(dropEvent);
             service.handlePlayerSwapHandItems(swapEvent);
@@ -759,7 +916,60 @@ class InventoryMechanicsCoordinatorServiceTest {
         }
 
         verify(enforceCap, org.mockito.Mockito.times(6)).accept(player);
-        verify(sharedService, org.mockito.Mockito.times(6)).requestSharedInventorySync(player);
+        // drop, swap, held, damage call requestSharedInventorySync directly (4 calls).
+        // bucket empty and fill now use scheduleDeterministicSourceSync (1-tick defer),
+        // which routes to syncSharedInventoryFromSourceNow — not requestSharedInventorySync.
+        verify(sharedService, org.mockito.Mockito.times(4)).requestSharedInventorySync(player);
+        verify(sharedService, org.mockito.Mockito.times(2)).syncSharedInventoryFromSourceNow(player);
+    }
+
+    @Test
+    void handlePlayerBucketEmptyAndFill_useDeferredDeterministicSync_notImmediateSync() {
+        // Bucket item transforms (empty→filled, filled→empty) happen after the event
+        // fires. Both handlers must defer by 1 tick via scheduleDeterministicSourceSync
+        // so Bukkit completes the transform before the inventory state is read.
+        JavaPlugin plugin = mock(JavaPlugin.class);
+        ChallengeManager challengeManager = mock(ChallengeManager.class);
+        SharedInventorySyncService sharedService = mock(SharedInventorySyncService.class);
+
+        Player player = mock(Player.class);
+        PlayerBucketEmptyEvent emptyEvent = mock(PlayerBucketEmptyEvent.class);
+        PlayerBucketFillEvent fillEvent = mock(PlayerBucketFillEvent.class);
+        when(emptyEvent.getPlayer()).thenReturn(player);
+        when(fillEvent.getPlayer()).thenReturn(player);
+        when(challengeManager.isComponentEnabled(ChallengeComponent.DEGRADING_INVENTORY))
+                .thenReturn(false);
+
+        InventoryMechanicsCoordinatorService service = new InventoryMechanicsCoordinatorService(
+                plugin,
+                challengeManager,
+                mock(DegradingInventoryService.class),
+                sharedService,
+                p -> true,
+                () -> true,
+                List::of,
+                p -> {},
+                mock(DeepCoreLogger.class));
+
+        BukkitScheduler scheduler = mock(BukkitScheduler.class);
+        try (MockedStatic<Bukkit> bukkit = org.mockito.Mockito.mockStatic(Bukkit.class)) {
+            bukkit.when(Bukkit::getScheduler).thenReturn(scheduler);
+            doAnswer(invocation -> {
+                        Runnable task = invocation.getArgument(1);
+                        task.run();
+                        return null;
+                    })
+                    .when(scheduler)
+                    .runTaskLater(eq(plugin), any(Runnable.class), eq(1L));
+
+            service.handlePlayerBucketEmpty(emptyEvent);
+            service.handlePlayerBucketFill(fillEvent);
+        }
+
+        // Must never call the immediate sync — transform hasn't happened yet at event time
+        verify(sharedService, never()).requestSharedInventorySync(any());
+        // Must call the 1-tick deferred deterministic sync for each bucket event
+        verify(sharedService, org.mockito.Mockito.times(2)).syncSharedInventoryFromSourceNow(player);
     }
 
     @Test
@@ -930,7 +1140,8 @@ class InventoryMechanicsCoordinatorServiceTest {
             service.handlePlayerArmorChanged(equipmentEvent);
         }
 
-        verify(sharedService).consumeWearableFromOtherParticipants(Material.DIAMOND_HELMET, playerId);
+        // Main-hand equip: sourceInventorySlot = getHeldItemSlot(), unstubbed mock returns 0
+        verify(sharedService).consumeWearableFromOtherParticipants(Material.DIAMOND_HELMET, playerId, 0);
         verify(sharedService).capturePlayerWearableSnapshot(player);
     }
 
@@ -1011,7 +1222,8 @@ class InventoryMechanicsCoordinatorServiceTest {
             service.handlePlayerArmorChanged(equipmentEvent);
         }
 
-        verify(sharedService).consumeWearableFromOtherParticipants(Material.IRON_CHESTPLATE, playerId);
+        // Main-hand equip: sourceInventorySlot = getHeldItemSlot(), unstubbed mock returns 0
+        verify(sharedService).consumeWearableFromOtherParticipants(Material.IRON_CHESTPLATE, playerId, 0);
         verify(sharedService).capturePlayerWearableSnapshot(player);
     }
 

@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -13,6 +14,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.List;
@@ -80,7 +82,7 @@ class SharedInventorySyncServiceTest {
     }
 
     @Test
-    void requestSharedInventorySync_runsDeferredSync_andEnforcesSlotCap() {
+    void requestSharedInventorySync_syncsImmediately_andEnforcesSlotCap() {
         JavaPlugin plugin = mock(JavaPlugin.class);
         UUID sourceId = UUID.randomUUID();
         UUID targetId = UUID.randomUUID();
@@ -103,7 +105,6 @@ class SharedInventorySyncServiceTest {
         when(sourceInventory.getStorageContents()).thenReturn(new ItemStack[] {sourceStack});
         when(sourceInventory.getExtraContents()).thenReturn(new ItemStack[0]);
         when(sourceInventory.getArmorContents()).thenReturn(new ItemStack[4]);
-        when(targetInventory.getArmorContents()).thenReturn(new ItemStack[4]);
 
         @SuppressWarnings("unchecked")
         java.util.function.Consumer<Player> enforceCap = mock(java.util.function.Consumer.class);
@@ -118,24 +119,15 @@ class SharedInventorySyncServiceTest {
                 enforceCap,
                 new HashMap<>());
 
-        BukkitScheduler scheduler = mock(BukkitScheduler.class);
-        try (MockedStatic<Bukkit> bukkit = org.mockito.Mockito.mockStatic(Bukkit.class)) {
-            bukkit.when(Bukkit::getScheduler).thenReturn(scheduler);
-            doAnswer(invocation -> {
-                        Runnable task = invocation.getArgument(1);
-                        task.run();
-                        return null;
-                    })
-                    .when(scheduler)
-                    .runTask(eq(plugin), any(Runnable.class));
-
-            service.requestSharedInventorySync(source);
-        }
+        service.requestSharedInventorySync(source);
 
         verify(targetInventory).setStorageContents(any(ItemStack[].class));
         verify(targetInventory).setExtraContents(any(ItemStack[].class));
+        verify(sourceInventory, never()).setStorageContents(any(ItemStack[].class));
+        verify(sourceInventory, never()).setExtraContents(any(ItemStack[].class));
         verify(target).updateInventory();
-        verify(enforceCap).accept(source);
+        verify(source, never()).updateInventory();
+        verify(enforceCap, never()).accept(source);
         verify(enforceCap).accept(target);
     }
 
@@ -188,7 +180,7 @@ class SharedInventorySyncServiceTest {
         assertEquals(0, snapshots.get(sourceId).size());
 
         when(sourceInventory.getArmorContents()).thenReturn(new ItemStack[] {helmet, boots, null, null});
-        service.detectNewlyEquippedWearables(source);
+        service.detectNewlyEquippedWearables(source, -1);
 
         verify(otherInventory).setItem(0, null);
         verify(otherInventory).setItemInOffHand(null);
@@ -245,30 +237,53 @@ class SharedInventorySyncServiceTest {
     }
 
     @Test
-    void requestSharedInventorySync_onlyQueuesOnceUntilDeferredTaskRuns() {
+    void requestSharedInventorySync_defersOnlyWhileAlreadySyncing_thenDrains() throws Exception {
         JavaPlugin plugin = mock(JavaPlugin.class);
         Player source = mock(Player.class);
+        Player target = mock(Player.class);
         when(source.getUniqueId()).thenReturn(UUID.randomUUID());
+        when(target.getUniqueId()).thenReturn(UUID.randomUUID());
+        when(source.getGameMode()).thenReturn(GameMode.SURVIVAL);
+        when(target.getGameMode()).thenReturn(GameMode.SURVIVAL);
+
+        PlayerInventory sourceInventory = mock(PlayerInventory.class);
+        PlayerInventory targetInventory = mock(PlayerInventory.class);
+        when(source.getInventory()).thenReturn(sourceInventory);
+        when(target.getInventory()).thenReturn(targetInventory);
+        when(sourceInventory.getStorageContents()).thenReturn(new ItemStack[0]);
+        when(sourceInventory.getExtraContents()).thenReturn(new ItemStack[0]);
+        when(targetInventory.getStorageContents()).thenReturn(new ItemStack[0]);
+        when(targetInventory.getExtraContents()).thenReturn(new ItemStack[0]);
+        when(sourceInventory.getArmorContents()).thenReturn(new ItemStack[4]);
+        when(targetInventory.getArmorContents()).thenReturn(new ItemStack[4]);
 
         SharedInventorySyncService service = new SharedInventorySyncService(
                 plugin,
                 player -> true,
                 () -> true,
                 () -> true,
-                () -> List.of(source),
-                () -> false,
+                () -> List.of(source, target),
+                () -> true,
                 player -> {},
                 new HashMap<>());
 
         BukkitScheduler scheduler = mock(BukkitScheduler.class);
         try (MockedStatic<Bukkit> bukkit = org.mockito.Mockito.mockStatic(Bukkit.class)) {
             bukkit.when(Bukkit::getScheduler).thenReturn(scheduler);
+            setBooleanField(service, "syncingInventory", true);
+            service.requestSharedInventorySync(source);
 
-            service.requestSharedInventorySync(source);
-            service.requestSharedInventorySync(source);
+            verify(targetInventory, never()).setStorageContents(any(ItemStack[].class));
+            verify(targetInventory, never()).setExtraContents(any(ItemStack[].class));
+
+            setBooleanField(service, "syncingInventory", false);
+            ArgumentCaptor<Runnable> drainCaptor = ArgumentCaptor.forClass(Runnable.class);
+            verify(scheduler).runTask(eq(plugin), drainCaptor.capture());
+            drainCaptor.getValue().run();
         }
 
-        verify(scheduler, org.mockito.Mockito.times(1)).runTask(eq(plugin), any(Runnable.class));
+        verify(sourceInventory, never()).setStorageContents(any(ItemStack[].class));
+        verify(targetInventory).setStorageContents(any(ItemStack[].class));
     }
 
     @Test
@@ -323,8 +338,8 @@ class SharedInventorySyncServiceTest {
         try (MockedStatic<Bukkit> bukkit = org.mockito.Mockito.mockStatic(Bukkit.class)) {
             bukkit.when(Bukkit::getScheduler).thenReturn(scheduler);
 
-            inactive.requestWearableEquipSync(source);
-            active.requestWearableEquipSync(source);
+            inactive.requestWearableEquipSync(source, -1);
+            active.requestWearableEquipSync(source, -1);
         }
 
         verify(scheduler, org.mockito.Mockito.times(1)).runTask(eq(plugin), any(Runnable.class));
@@ -373,7 +388,6 @@ class SharedInventorySyncServiceTest {
         when(sourceInventory.getStorageContents()).thenReturn(new ItemStack[] {spareChestplate});
         when(sourceInventory.getExtraContents()).thenReturn(new ItemStack[0]);
         when(sourceInventory.getArmorContents()).thenReturn(new ItemStack[] {null, equippedChestplate, null, null});
-        when(targetInventory.getArmorContents()).thenReturn(new ItemStack[4]);
 
         SharedInventorySyncService service = new SharedInventorySyncService(
                 plugin,
@@ -406,6 +420,104 @@ class SharedInventorySyncServiceTest {
         assertNotNull(syncedStorage[0]);
         assertEquals(Material.IRON_CHESTPLATE, syncedStorage[0].getType());
         assertEquals(1, syncedStorage[0].getAmount());
+    }
+
+    @Test
+    void requestSharedInventorySync_propagatesUnequippedArmorToOthersEvenWhenTheyHaveSamePieceWorn() {
+        // When player A un-equips armor it genuinely returns to the shared pool.
+        // Player B seeing that piece in their shared storage is correct — A gave it up
+        // and it is now available again — even if B still has their own copy equipped.
+        // The sync must distribute the source storage as-is without subtracting what
+        // targets currently have in their armor slots.
+        JavaPlugin plugin = mock(JavaPlugin.class);
+        Player source = mock(Player.class);
+        Player target = mock(Player.class);
+
+        when(source.getUniqueId()).thenReturn(UUID.randomUUID());
+        when(target.getUniqueId()).thenReturn(UUID.randomUUID());
+        when(source.getGameMode()).thenReturn(GameMode.SURVIVAL);
+        when(target.getGameMode()).thenReturn(GameMode.SURVIVAL);
+
+        PlayerInventory sourceInventory = mock(PlayerInventory.class);
+        PlayerInventory targetInventory = mock(PlayerInventory.class);
+        when(source.getInventory()).thenReturn(sourceInventory);
+        when(target.getInventory()).thenReturn(targetInventory);
+
+        // Source un-equipped their iron chestplate; it is now in storage
+        ItemStack chestplate = new ItemStack(Material.IRON_CHESTPLATE, 1);
+        when(sourceInventory.getStorageContents()).thenReturn(new ItemStack[] {chestplate});
+        when(sourceInventory.getExtraContents()).thenReturn(new ItemStack[0]);
+        when(sourceInventory.getArmorContents()).thenReturn(new ItemStack[4]);
+
+        SharedInventorySyncService service = new SharedInventorySyncService(
+                plugin,
+                player -> true,
+                () -> true,
+                () -> true,
+                () -> List.of(source, target),
+                () -> false,
+                player -> {},
+                new HashMap<>());
+
+        service.requestSharedInventorySync(source);
+
+        ArgumentCaptor<ItemStack[]> storageCaptor = ArgumentCaptor.forClass(ItemStack[].class);
+        verify(targetInventory).setStorageContents(storageCaptor.capture());
+        ItemStack[] synced = storageCaptor.getValue();
+        // Un-equipped item must reach the target's storage unconditionally
+        assertNotNull(synced[0]);
+        assertEquals(Material.IRON_CHESTPLATE, synced[0].getType());
+    }
+
+    @Test
+    void requestSharedInventorySync_preservesCursorItemWhileSyncingStorage() {
+        // updateInventory() sends a full resync packet that includes the cursor slot.
+        // Without restoring the cursor into the InventoryView first, the packet clears
+        // it and the player loses their held item. The sync must snapshot the cursor,
+        // apply storage, restore the cursor, then call updateInventory() — so the player
+        // stays in sync with other participants AND keeps their held item.
+        JavaPlugin plugin = mock(JavaPlugin.class);
+        Player source = mock(Player.class);
+        Player target = mock(Player.class);
+
+        when(source.getUniqueId()).thenReturn(UUID.randomUUID());
+        when(target.getUniqueId()).thenReturn(UUID.randomUUID());
+        when(source.getGameMode()).thenReturn(GameMode.SURVIVAL);
+        when(target.getGameMode()).thenReturn(GameMode.SURVIVAL);
+
+        PlayerInventory sourceInventory = mock(PlayerInventory.class);
+        PlayerInventory targetInventory = mock(PlayerInventory.class);
+        when(source.getInventory()).thenReturn(sourceInventory);
+        when(target.getInventory()).thenReturn(targetInventory);
+
+        when(sourceInventory.getStorageContents()).thenReturn(new ItemStack[] {new ItemStack(Material.STONE)});
+        when(sourceInventory.getExtraContents()).thenReturn(new ItemStack[0]);
+        when(sourceInventory.getArmorContents()).thenReturn(new ItemStack[4]);
+        when(targetInventory.getArmorContents()).thenReturn(new ItemStack[4]);
+
+        // Use a real ItemStack so clone() works correctly
+        ItemStack cursorItem = new ItemStack(Material.DIAMOND, 1);
+        InventoryView openView = mock(InventoryView.class);
+        when(openView.getCursor()).thenReturn(cursorItem);
+        when(target.getOpenInventory()).thenReturn(openView);
+
+        SharedInventorySyncService service = new SharedInventorySyncService(
+                plugin,
+                player -> true,
+                () -> true,
+                () -> true,
+                () -> List.of(source, target),
+                () -> false,
+                player -> {},
+                new HashMap<>());
+
+        service.requestSharedInventorySync(source);
+
+        // Storage must still be synced — the player must not fall behind
+        verify(targetInventory).setStorageContents(any());
+        // Cursor must be restored before updateInventory() so the outgoing packet keeps it
+        verify(openView).setCursor(argThat(item -> item != null && item.getType() == Material.DIAMOND));
+        verify(target).updateInventory();
     }
 
     @Test
@@ -453,8 +565,8 @@ class SharedInventorySyncServiceTest {
                 p -> {},
                 new HashMap<>());
 
-        inactive.detectNewlyEquippedWearables(player);
-        disabled.detectNewlyEquippedWearables(player);
+        inactive.detectNewlyEquippedWearables(player, -1);
+        disabled.detectNewlyEquippedWearables(player, -1);
     }
 
     @Test
@@ -659,11 +771,95 @@ class SharedInventorySyncServiceTest {
         verify(other).updateInventory();
     }
 
+    @Test
+    void consumeWearableFromOtherParticipants_neverStripsEquippedArmorFromOtherPlayers() {
+        JavaPlugin plugin = mock(JavaPlugin.class);
+        UUID sourceId = UUID.randomUUID();
+
+        Player source = mock(Player.class);
+        Player other = mock(Player.class);
+        when(source.getUniqueId()).thenReturn(sourceId);
+        when(other.getUniqueId()).thenReturn(UUID.randomUUID());
+        when(source.getGameMode()).thenReturn(GameMode.SURVIVAL);
+        when(other.getGameMode()).thenReturn(GameMode.SURVIVAL);
+
+        PlayerInventory otherInventory = mock(PlayerInventory.class);
+        when(other.getInventory()).thenReturn(otherInventory);
+        when(source.getInventory()).thenReturn(mock(PlayerInventory.class));
+        when(otherInventory.getSize()).thenReturn(41);
+        when(otherInventory.getItemInOffHand()).thenReturn(null);
+        // No item in any storage slot
+        when(otherInventory.getItem(any(Integer.class))).thenReturn(null);
+        // But other player has diamond helmet equipped
+        ItemStack equippedHelmet = mock(ItemStack.class);
+        when(equippedHelmet.getType()).thenReturn(Material.DIAMOND_HELMET);
+        when(equippedHelmet.getAmount()).thenReturn(1);
+        when(otherInventory.getHelmet()).thenReturn(equippedHelmet);
+
+        SharedInventorySyncService service = new SharedInventorySyncService(
+                plugin,
+                player -> true,
+                () -> true,
+                () -> true,
+                () -> List.of(source, other),
+                () -> false,
+                p -> {},
+                new HashMap<>());
+
+        service.consumeWearableFromOtherParticipants(Material.DIAMOND_HELMET, sourceId);
+
+        verify(otherInventory, never()).setHelmet(null);
+        verify(other, never()).updateInventory();
+    }
+
+    @Test
+    void consumeWearableFromOtherParticipants_removesFromExactSourceSlotWhenKnown() {
+        JavaPlugin plugin = mock(JavaPlugin.class);
+        UUID sourceId = UUID.randomUUID();
+
+        Player source = mock(Player.class);
+        Player other = mock(Player.class);
+        when(source.getUniqueId()).thenReturn(sourceId);
+        when(other.getUniqueId()).thenReturn(UUID.randomUUID());
+        when(source.getGameMode()).thenReturn(GameMode.SURVIVAL);
+        when(other.getGameMode()).thenReturn(GameMode.SURVIVAL);
+
+        PlayerInventory otherInventory = mock(PlayerInventory.class);
+        when(other.getInventory()).thenReturn(otherInventory);
+        when(source.getInventory()).thenReturn(mock(PlayerInventory.class));
+
+        ItemStack boots = mock(ItemStack.class);
+        when(boots.getType()).thenReturn(Material.IRON_BOOTS);
+        when(boots.getAmount()).thenReturn(1);
+        when(otherInventory.getItem(5)).thenReturn(boots);
+
+        SharedInventorySyncService service = new SharedInventorySyncService(
+                plugin,
+                player -> true,
+                () -> true,
+                () -> true,
+                () -> List.of(source, other),
+                () -> false,
+                p -> {},
+                new HashMap<>());
+
+        service.consumeWearableFromOtherParticipants(Material.IRON_BOOTS, sourceId, 5);
+
+        verify(otherInventory).setItem(5, null);
+        verify(other).updateInventory();
+    }
+
     private static int invokeRemoveMaterialFromItemArray(
             SharedInventorySyncService service, ItemStack[] contents, Material material, int amount) throws Exception {
         Method method = SharedInventorySyncService.class.getDeclaredMethod(
                 "removeMaterialFromItemArray", ItemStack[].class, Material.class, int.class);
         method.setAccessible(true);
         return (int) method.invoke(service, contents, material, amount);
+    }
+
+    private static void setBooleanField(Object target, String fieldName, boolean value) throws Exception {
+        Field field = target.getClass().getDeclaredField(fieldName);
+        field.setAccessible(true);
+        field.setBoolean(target, value);
     }
 }

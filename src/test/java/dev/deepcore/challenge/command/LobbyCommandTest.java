@@ -1,4 +1,4 @@
-package dev.deepcore.challenge;
+package dev.deepcore.challenge.command;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -6,6 +6,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import dev.deepcore.challenge.ChallengeSessionManager;
 import dev.deepcore.challenge.training.TrainingManager;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
