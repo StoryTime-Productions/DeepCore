@@ -1,15 +1,17 @@
-### Proposed Changes:
+## Summary
 
-[Brief description of the changes made in this pull request]
+<!-- What does this PR do? -->
 
-### Details:
+## Changes
 
-- [Detail 1]
+<!-- Bullet list of notable changes -->
 
-### Related Issues:
+-
 
-- Resolves #[Issue nb]
+## Test plan
 
-### Screenshot:
+- [ ]
 
-[Optional section. Add UI/code screenshots if needed.]
+## Related issues
+
+<!-- Closes #... -->
