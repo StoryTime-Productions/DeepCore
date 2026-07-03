@@ -1,0 +1,46 @@
+Test / dev database configuration — feature log
+
+==============================================================
+Feature:
+Allow the run-records SQLite database filename to be set in config.yml so the plugin
+can point at a separate test database without touching production run history.
+
+Use case:
+Production server has completed runs in records.db. To test the completed-runs GUI
+or run trial speedruns, set db-name: records-dev.db in config.yml and reload.
+The dev database is created fresh (migrations still run) and prod data is never touched.
+Reverting to prod is a one-line config change back to records.db.
+
+Implementation notes:
+
+  config.yml — new key:
+    records:
+      db-name: records.db
+    Default is records.db, preserving existing behaviour for all existing servers.
+    The file is always resolved relative to the plugin data folder.
+
+  RunRecordsService.java — constructor signature change:
+    Was:  RunRecordsService(JavaPlugin plugin)
+    Now:  RunRecordsService(JavaPlugin plugin, String dbFileName)
+    dbPath is now built as:
+      "jdbc:sqlite:" + plugin.getDataFolder().getAbsolutePath() + "/" + dbFileName
+    All schema creation and migration logic runs against whichever file is named,
+    so a brand-new dev database gets the full current schema on first start with
+    no manual setup needed.
+
+  ChallengeRuntimeInitializer.java:
+    Reads plugin.getConfig().getString("records.db-name", "records.db") before
+    constructing RunRecordsService, and logs the resolved filename at INFO level so
+    it is visible in console on startup (easy to confirm which DB is active).
+
+  RunRecordsServiceTest.java:
+    All new RunRecordsService(plugin) calls updated to
+    new RunRecordsService(plugin, "records.db").
+
+Status: implemented and tested.
+
+Files changed:
+- config.yml
+- RunRecordsService.java
+- ChallengeRuntimeInitializer.java
+- RunRecordsServiceTest.java

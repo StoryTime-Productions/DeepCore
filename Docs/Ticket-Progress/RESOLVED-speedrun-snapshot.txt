@@ -1,0 +1,87 @@
+TICKET: ONGOING-speedrun-snapshot
+STATUS: Implementation complete — pending tests
+
+FEATURE SUMMARY:
+Allow all online participants to unanimously vote (/challenge saverun) to save the
+current speedrun state persistently to disk. Transports players to lobby and returns to
+PREP phase. A separate /challenge restore command (admin-only) allows restoring the saved
+run later. Only one saved run slot exists at a time; new save overwrites old. Restore
+applies saved player positions, inventories, health, and other state. Run timer accounts
+for lobby time elapsed since save.
+
+NOTE: /challenge resume already existed for in-memory pause/resume.
+      The persistent save/restore feature uses separate commands: saverun and restore.
+
+COMPLETED WORK:
+
+1. SessionTimingState.java (MODIFIED)
+   - Added restore(long runStartMs, long accumulatedPausedMs, long savedAtMs) method
+   - Adds elapsed lobby time (System.currentTimeMillis() - savedAtMs) to accumulated
+     paused millis so the run timer correctly excludes lobby time when resumed
+
+2. RunProgressService.java (MODIFIED)
+   - Added restore(boolean reachedNether, long netherMs, boolean reachedBlazeObjective,
+     long blazeObjectiveMs, boolean reachedEnd, long endMs)
+   - Always sets dragonKilled = false on restore
+   - Added hasReachedBlazeObjective(), getNetherReachedMillis(),
+     getBlazeObjectiveReachedMillis(), getEndReachedMillis() getters
+
+3. SavedRunStateService.java (NEW)
+   - SavedRunSnapshot record: savedAtMs, runStartMs, accumulatedPausedMs, milestone
+     flags/timestamps, participantUuids, enabledComponents, difficulty, playerSnapshots
+   - PlayerSnapshot record: world, coords, yaw/pitch, health, maxHealth, food, saturation,
+     exhaustion, fireTicks, remainingAir, XP, gameMode, allowFlight, flying,
+     inventory contents (storage/armor/extra), potionEffects
+   - hasSavedRun(), saveRun(SavedRunSnapshot), loadSavedRun() -> Optional<SavedRunSnapshot>,
+     clearSavedRun()
+   - Static capturePlayer(Player) -> PlayerSnapshot
+   - Static applySnapshot(Player, PlayerSnapshot)
+   - YAML serialization backed by saved_run.yml in plugin data folder
+   - MAX_HEALTH vs GENERIC_MAX_HEALTH attribute reflection fallback
+
+4. RunSaveVoteService.java (NEW)
+   - Tracks Set<UUID> votes and BukkitTask timeoutTask (60s)
+   - castVote(Player voter, Runnable onAllVoted): validates participant membership,
+     deduplicates votes, broadcasts progress (X/total), starts timeout on first vote,
+     triggers onAllVoted when all online participants have voted
+   - clearVotes(): cancels timeout task and clears vote set
+   - Timeout broadcasts expiry message and clears votes
+
+5. ChallengeSessionManager.java (MODIFIED)
+   - Added SavedRunStateService savedRunStateService field (constructed in constructor)
+   - Added RunSaveVoteService runSaveVoteService field (constructed in constructor)
+   - PrepGuiCoordinatorService constructed with savedRunStateService::hasSavedRun and
+     () -> restoreSavedRun(Bukkit.getConsoleSender()) lambdas
+   - castSaveVote(Player voter): validates RUNNING phase, delegates to runSaveVoteService
+   - saveRunAndReturnToPrep() [private]: captures timing/progress/participant/player state,
+     builds SavedRunSnapshot, saves to disk, clears votes, broadcasts, calls
+     endChallengeAndReturnToPrep()
+   - restoreSavedRun(CommandSender sender) [public]: validates PREP phase, loads snapshot,
+     resolves online participants, restores timing + progress, transitions to RUNNING,
+     applies player snapshots, clears saved run file, broadcasts success
+
+6. ChallengeAdminFacade.java (MODIFIED)
+   - Added castSaveVote(Player voter) -> boolean
+   - Added restoreSavedRun(CommandSender sender) -> boolean
+
+7. ChallengeCoreCommandHandler.java (MODIFIED)
+   - Added "saverun" subcommand: player-only, validates RUNNING phase, calls castSaveVote
+   - Added "restore" subcommand: admin-only (deepcore.challenge.admin), validates PREP
+     phase, calls restoreSavedRun
+   - Updated tab-completion list to include saverun and restore
+   - Updated unknown-subcommand error message
+
+SAVE/RESTORE FLOW:
+  Save:  /challenge saverun (each participant) → unanimous vote → saveRunAndReturnToPrep()
+         → YAML snapshot → endChallengeAndReturnToPrep() → PREP phase
+  Restore: /challenge restore (admin) → load YAML → restore timing + progress →
+           apply player snapshots → RUNNING phase → clear saved_run.yml
+
+DESIGN DECISION:
+- The restore action must NOT have a clickable item in the DeepCore prep GUI.
+  Use only the /challenge restore command (admin-only). Remove any prep GUI item
+  wired to the restore flow if one was added.
+
+PENDING:
+- Unit tests: ChallengeRuntimeInitializerTest (MockedConstruction<SavedRunStateService>),
+  any integration tests for the vote flow

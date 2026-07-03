@@ -1,0 +1,88 @@
+TICKET: ONGOING-shared-inventory-losing-items
+STATUS: Active — fixes applied, pending in-game verification under heavy load
+
+==============================================================
+Bug 1: Un-equipping armor does not show up on other players' inventories
+
+Problem:
+When player A wears a set of armor and then un-equips it, the un-equipped pieces do
+not appear in other players' shared inventory views. The items exist correctly in the
+source storage but are missing from synced targets.
+
+Root cause (initial, incorrect diagnosis):
+syncInventoryFrom() was modified to subtract each target's currently-equipped armor
+from the cloned storage before calling setStorageContents(). The intent was to prevent
+phantom duplicates when a player un-equips. However, this was incorrect: when A
+un-equips a chestplate, the piece legitimately returns to the shared pool. If B is
+wearing their own chestplate, removing one instance from B's synced storage means B
+never sees the returned piece. The "phantom duplicate" is actually a real item in the
+shared inventory.
+
+Root cause (actual):
+The real cause of the phantom-duplicate symptom (if observed) is a race condition in
+handleInventoryClick: the full inventory sync was scheduled via runTask BEFORE
+requestWearableEquipSync. Bukkit's FIFO runTask ordering meant the sync fired first,
+copying A's post-equip storage (slot now empty) to B before detectNewlyEquippedWearables
+could consume the piece from B's storage at the correct slot. The fallback
+removeOneFromMainInventory then removed the wrong set's piece.
+
+Fix (InventoryMechanicsCoordinatorService.handleInventoryClick):
+requestWearableEquipSync is now called before Bukkit.getScheduler().runTask for the
+sync. detectNewlyEquippedWearables is therefore queued first and runs first on the next
+tick. The source slot is still populated on B when the consume fires, so removeFromSlot
+succeeds at the correct slot and the fallback never triggers.
+
+Fix (SharedInventorySyncService.syncInventoryFrom):
+The per-target armor subtraction block was reverted. syncInventoryFrom now distributes
+storage as-is (per-target clone only, no armor removal). When a player un-equips, the
+item genuinely returns to the shared pool and all participants correctly see it —
+including participants who are wearing the same piece type themselves.
+
+Status: Fixed — pending in-game verification
+
+==============================================================
+Bug 2: Item held on cursor vanishes when another player edits the inventory
+
+Problem:
+Player A picks up an item (cursor-hold state, mid-drag). While the item is on A's
+cursor, Player B performs any inventory edit. This causes Player A's held item to
+disappear entirely — it is neither in A's inventory nor on the ground.
+
+Root cause:
+syncInventoryFrom() called setStorageContents() + updateInventory() on every target
+unconditionally. Calling updateInventory() while a player has an item on their cursor
+sends a full inventory resync packet to the client, which causes Bukkit to drop the
+cursor item server-side as part of the packet flush.
+
+Fix (SharedInventorySyncService.syncInventoryFrom):
+Before syncing to a target, the target's open InventoryView cursor is snapshot. After
+setStorageContents() and setExtraContents() are applied, the cursor is restored into
+the InventoryView via setCursor() before updateInventory() is called. Bukkit reads the
+cursor from the InventoryView when building the outgoing packet, so the restored item
+is included and the client never loses it. The player stays fully in sync with other
+participants while still holding their cursor item.
+
+Status: Fixed — pending in-game verification
+
+==============================================================
+Bug 3: Buckets do not work correctly under the shared inventory
+
+Problem:
+Bucket interactions (filling from water/lava, emptying) were broken — the item
+transform was not being reflected correctly in the shared inventory.
+
+Root cause:
+handlePlayerBucketEmpty() and handlePlayerBucketFill() called requestSharedInventorySync()
+with no tick delay. Bucket item transforms (empty bucket → water bucket on fill, water/lava
+bucket → empty bucket on empty) happen after the event fires — identical to the boat
+placement bug previously fixed. Syncing immediately broadcast the pre-transform state
+(e.g. still-empty bucket) to all other participants, leaving them permanently desynced.
+
+Fix (InventoryMechanicsCoordinatorService):
+Both handlers now call scheduleDeterministicSourceSync(player, 1L) instead of
+requestSharedInventorySync(). This defers the sync by 1 tick so Bukkit completes the
+item transform before the inventory state is read and broadcast. This matches the
+existing pattern used for handlePlayerBucketEntity(), handleBlockPlace(), and
+handleEntityPlace().
+
+Status: Fixed — pending in-game verification

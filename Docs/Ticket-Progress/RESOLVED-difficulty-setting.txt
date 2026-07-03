@@ -1,0 +1,103 @@
+TICKET: RESOLVED-difficulty-setting
+STATUS: Resolved
+
+FEATURE SUMMARY:
+Add an Easy/Normal/Hard difficulty setting to the DeepCore prep GUI categories page.
+The difficulty cycles on click (slot 31), is saved when a successful run completes,
+and is displayed in the completed runs GUI (run history lore).
+
+COMPLETED WORK:
+
+1. ChallengeDifficulty.java (NEW)
+   - Enum with EASY/NORMAL/HARD entries
+   - key(), displayName(), next() (cycles), fromKey(String) methods
+
+2. ChallengeManager.java (MODIFIED)
+   - Added DIFFICULTY_PATH = "challenge.difficulty" config key
+   - Added private ChallengeDifficulty difficulty field (default NORMAL)
+   - loadFromConfig() reads difficulty from config
+   - saveToConfig() persists difficulty.key()
+   - Added getDifficulty() and setDifficulty(ChallengeDifficulty) (auto-saves)
+
+3. PrepSettingsService.java (MODIFIED)
+   - Added cycleDifficulty() — calls challengeManager.setDifficulty(getDifficulty().next())
+
+4. PrepGuiRenderer.java (MODIFIED)
+   - populateCategoriesPage() signature extended: now accepts ChallengeDifficulty difficulty
+     and boolean savedRunExists
+   - Slot 31: difficulty cycling item (LIME_DYE=Easy, YELLOW_DYE=Normal, RED_DYE=Hard)
+   - Slot 33: conditional "Restore Saved Run" button (RESPAWN_ANCHOR), only when savedRunExists=true
+   - createRunRecordItem() adds "Difficulty: <value>" line to run history lore
+   - Added formatDifficulty(String) and createDifficultyItem(ChallengeDifficulty) helpers
+
+5. PrepGuiCoordinatorService.java (MODIFIED)
+   - Constructor extended with BooleanSupplier savedRunExistsSupplier and Runnable restoreSavedRunFlow
+   - openPrepGui() CATEGORIES branch passes challengeManager.getDifficulty() and
+     savedRunExistsSupplier.getAsBoolean() to the renderer
+
+6. PrepGuiFlowService.java (MODIFIED)
+   - handleClick() gains 11th parameter: Runnable restoreSavedRunFlow
+   - Slot 31 on CATEGORIES page: calls prepSettingsService.cycleDifficulty() + refresh
+   - Slot 33 on CATEGORIES page: calls restoreSavedRunFlow.run()
+
+7. RunRecord.java (MODIFIED)
+   - Added private final String difficulty as 10th field
+   - Constructor null-guards to "" for missing difficulty
+   - Added getDifficulty() getter
+
+8. RunRecordsService.java (MODIFIED)
+   - DDL includes difficulty TEXT NOT NULL DEFAULT ''
+   - addDifficultyColumn() migration: ALTER TABLE ADD COLUMN if column missing
+   - recordRun() accepts String difficulty (9th param), bound into INSERT
+   - getAllRecords() SELECT includes difficulty, passed to RunRecord constructor
+
+9. RunCompletionService.java (MODIFIED)
+   - Added Supplier<String> difficultyKeySupplier field
+   - recordRunIfAvailable() passes difficultyKeySupplier.get() to recordsService.recordRun()
+
+10. ChallengeSessionManager.java (MODIFIED)
+    - RunCompletionService constructed with () -> challengeManager.getDifficulty().key()
+    - PrepGuiCoordinatorService constructed with savedRunStateService::hasSavedRun and restore lambda
+
+SESSION 2 COMPLETED WORK:
+
+11. Unit tests updated across all affected files:
+    - RunRecordTest.java: All 7 RunRecord constructors updated to 10-arg (added "" or "hard"
+      difficulty); new getDifficulty_returnsStoredValue_andNullBecomesEmpty() test added.
+    - RunRecordsServiceTest.java: initialize test updated with pragma3Stmt/pragma3Rs mocks for
+      difficulty column PRAGMA check; recordRun calls updated to 9-arg with difficulty string;
+      initialize_recreatesLegacySchema updated for fresh schema (pragma3Rs returns true since
+      column already exists in recreated schema).
+    - RunCompletionServiceTest.java: newService() helper updated with () -> "normal" between
+      enabledComponentsSupplier and log; all recordRun verify calls updated with eq("normal")
+      as 9th arg.
+    - PrepGuiRendererTest.java: populateCategoriesPage call updated with ChallengeDifficulty.NORMAL
+      and false; RunRecord constructors in history list updated to 10-arg.
+    - PrepGuiCoordinatorServiceTest.java: Fixture constructor updated with savedRunExistsSupplier
+      (() -> false) and restoreSavedRunFlow (mock Runnable) before prepGuiTitle; added
+      when(challengeManager.getDifficulty()).thenReturn(ChallengeDifficulty.NORMAL); all three
+      handleClick verify calls updated with 11th any() argument.
+    - PrepGuiFlowServiceTest.java: All handleClick calls (16 total) updated to pass mock(Runnable.class)
+      as 11th argument for restoreSavedRunFlow.
+
+BUG FIX (Session 2):
+    Issue: Setting difficulty to Hard in the prep GUI had no effect on the actual Minecraft world
+    difficulty — worlds remained on Easy (server default).
+
+    Root cause: SessionRulesCoordinatorService.syncWorldRules() only applied the KEEP_INVENTORY
+    gamerule. It never called World.setDifficulty(), so the Bukkit world difficulty was never
+    updated regardless of what ChallengeDifficulty was selected.
+
+    Fix (SessionRulesCoordinatorService.java):
+    - Added imports: ChallengeDifficulty, org.bukkit.Difficulty
+    - Compute Difficulty worldDifficulty before the worlds loop:
+        Difficulty worldDifficulty = challengeManager.isEnabled()
+                ? Difficulty.valueOf(challengeManager.getDifficulty().name())
+                : Difficulty.NORMAL;
+    - Added world.setDifficulty(worldDifficulty) inside the worlds loop alongside the
+      existing world.setGameRule() call.
+    - Mapping works directly: ChallengeDifficulty enum names (EASY/NORMAL/HARD) match
+      org.bukkit.Difficulty enum constants exactly, so Difficulty.valueOf(...name()) is safe.
+    - Falls back to NORMAL when challenge is disabled.
+
+STATUS: Resolved
