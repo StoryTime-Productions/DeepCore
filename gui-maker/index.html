@@ -1,0 +1,1004 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Static Minecraft GUI editor using Franken UI" />
+  <title>GUI Maker</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/franken-ui@latest/dist/css/franken-ui.css" />
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f3f1eb;
+      --bg-2: #e9eef2;
+      --panel: rgba(255, 255, 255, 0.9);
+      --line: #d7dee7;
+      --ink: #0f172a;
+      --muted: #667085;
+      --shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 18px 40px rgba(15, 23, 42, 0.06);
+      --radius-lg: 18px;
+      --radius-md: 14px;
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      min-height: 100%;
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(255, 255, 255, 0.8), transparent 28%),
+        linear-gradient(180deg, var(--bg), var(--bg-2));
+    }
+
+    body {
+      padding: 24px;
+    }
+
+    button,
+    input,
+    textarea,
+    select {
+      font: inherit;
+    }
+
+    .app {
+      max-width: 1600px;
+      margin: 0 auto;
+    }
+
+    .hero,
+    .main {
+      display: grid;
+      gap: 18px;
+    }
+
+    .hero {
+      grid-template-columns: minmax(0, 1.5fr) minmax(340px, 0.9fr);
+      margin-bottom: 18px;
+    }
+
+    .main {
+      grid-template-columns: minmax(0, 1.2fr) minmax(360px, 0.8fr);
+      align-items: start;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(14px);
+    }
+
+    .section {
+      padding: 18px;
+    }
+
+    .hero-copy {
+      padding: 28px;
+    }
+
+    .eyebrow {
+      margin: 0 0 12px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    h1,
+    h2,
+    p {
+      margin: 0;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 3vw, 3.2rem);
+      line-height: 1.02;
+      letter-spacing: -0.06em;
+    }
+
+    .lede,
+    .section p,
+    .helper {
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    .lede {
+      margin-top: 14px;
+      max-width: 68ch;
+    }
+
+    .hero-meta {
+      display: grid;
+      gap: 12px;
+      padding: 22px;
+    }
+
+    .toolbar,
+    .actions,
+    .form-row,
+    .toggles {
+      display: grid;
+      gap: 10px;
+    }
+
+    .toolbar,
+    .actions {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .form-row {
+      grid-template-columns: minmax(0, 1fr) minmax(180px, 0.7fr);
+    }
+
+    .toggles {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .panel-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .panel-head h2 {
+      font-size: 1.05rem;
+    }
+
+    .badge {
+      align-self: center;
+      white-space: nowrap;
+    }
+
+    .grid-wrap {
+      overflow: auto;
+      border-radius: 16px;
+      padding: 2px;
+      background: linear-gradient(180deg, rgba(15, 23, 42, 0.04), rgba(15, 23, 42, 0.01));
+    }
+
+    .grid {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(9, minmax(0, 1fr));
+      min-width: 640px;
+    }
+
+    .slot {
+      min-height: 90px;
+      padding: 10px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: #fff;
+      text-align: left;
+      display: grid;
+      align-content: space-between;
+      gap: 8px;
+      transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+      overflow: hidden;
+    }
+
+    .slot:hover {
+      transform: translateY(-1px);
+      border-color: #b9c4d0;
+      box-shadow: 0 10px 20px rgba(15, 23, 42, 0.05);
+    }
+
+    .slot.selected {
+      border-color: #111827;
+      box-shadow: inset 0 0 0 1px #111827;
+    }
+
+    .slot.empty .slot-name {
+      color: #98a2b3;
+    }
+
+    .slot-index {
+      color: var(--muted);
+      font-size: 0.72rem;
+    }
+
+    .slot-icon {
+      font-size: 1.2rem;
+    }
+
+    .slot-name {
+      font-size: 0.88rem;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .sidebar {
+      display: grid;
+      gap: 18px;
+    }
+
+    .field label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 0.84rem;
+      font-weight: 600;
+    }
+
+    .field .uk-input,
+    .field .uk-select,
+    .field .uk-textarea,
+    .hero-meta .uk-input,
+    .hero-meta .uk-select,
+    .hero-meta .uk-textarea {
+      width: 100%;
+    }
+
+    .palette {
+      display: grid;
+      gap: 8px;
+      max-height: 420px;
+      overflow: auto;
+      padding-right: 4px;
+    }
+
+    .palette .uk-button {
+      justify-content: flex-start;
+      text-align: left;
+      display: grid;
+      gap: 2px;
+    }
+
+    .palette .uk-button.active {
+      background: #111827;
+      border-color: #111827;
+      color: #fff;
+    }
+
+    .toggle {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .toggle input {
+      width: 16px;
+      height: 16px;
+      margin: 0;
+    }
+
+    .json {
+      min-height: 320px;
+      resize: vertical;
+      font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+      font-size: 0.84rem;
+      line-height: 1.5;
+    }
+
+    .hint-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    @media (max-width: 1200px) {
+      .hero,
+      .main {
+        grid-template-columns: 1fr;
+      }
+
+      .toolbar,
+      .actions,
+      .form-row,
+      .toggles {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .grid {
+        min-width: 0;
+      }
+    }
+
+    @media (max-width: 720px) {
+      body {
+        padding: 12px;
+      }
+
+      .section,
+      .hero-copy,
+      .hero-meta {
+        padding: 16px;
+      }
+
+      .toolbar,
+      .actions,
+      .form-row,
+      .toggles {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body class="uk-theme-zinc uk-radii-md uk-shadows-sm uk-font-sm">
+  <div class="app">
+    <header class="hero">
+      <section class="card hero-copy">
+        <p class="eyebrow">DeepCore GUI Maker</p>
+        <h1>Minecraft GUI editor with a single Franken UI surface</h1>
+        <p class="lede">
+          Place items into a chest grid, adjust the important slot properties, and export a plain JSON document that can be read by an AI or turned into plugin code later.
+        </p>
+        <div class="hint-row">
+          <span class="uk-badge">Static HTML only</span>
+          <span class="uk-badge">Franken UI styling</span>
+          <span class="uk-badge">AI-friendly export</span>
+        </div>
+      </section>
+
+      <section class="card hero-meta">
+        <div class="field">
+          <label class="uk-form-label" for="guiTitle">GUI title</label>
+          <input class="uk-input" id="guiTitle" type="text" value="Training Menu" maxlength="80" />
+        </div>
+
+        <div class="field">
+          <label class="uk-form-label" for="guiSize">Grid size</label>
+          <select class="uk-select" id="guiSize">
+            <option value="9">9 slots</option>
+            <option value="18">18 slots</option>
+            <option value="27">27 slots</option>
+            <option value="36">36 slots</option>
+            <option value="45">45 slots</option>
+            <option value="54" selected>54 slots</option>
+          </select>
+        </div>
+
+        <div class="toolbar">
+          <button id="exportJsonBtn" class="uk-button uk-button-primary">Export JSON</button>
+          <button id="copyJsonBtn" class="uk-button uk-button-default">Copy JSON</button>
+          <button id="clearBtn" class="uk-button uk-button-default">Clear grid</button>
+        </div>
+      </section>
+    </header>
+
+    <main class="main">
+      <section class="card section">
+        <div class="panel-head">
+          <div>
+            <h2>Inventory Grid</h2>
+            <p>Click a slot to place the selected item or edit the one already there.</p>
+          </div>
+          <div class="uk-badge badge" id="slotCounter">0 / 54 used</div>
+        </div>
+        <div class="grid-wrap">
+          <div id="grid" class="grid" aria-label="Minecraft GUI grid"></div>
+        </div>
+      </section>
+
+      <aside class="sidebar">
+        <section class="card section">
+          <div class="panel-head">
+            <div>
+              <h2>Item Palette</h2>
+              <p>Search a material, then pick it once and apply it across slots.</p>
+            </div>
+          </div>
+          <div class="field">
+            <label class="uk-form-label" for="materialSearch">Search material</label>
+            <input class="uk-input" id="materialSearch" type="text" placeholder="diamond sword, barrier, chest..." />
+          </div>
+          <div id="palette" class="palette" aria-label="Material palette"></div>
+        </section>
+
+        <section class="card section">
+          <div class="panel-head">
+            <div>
+              <h2>Selected Item</h2>
+              <p>Adjust the slot you picked from the grid.</p>
+            </div>
+            <div class="uk-badge badge" id="selectedSlotBadge">No slot selected</div>
+          </div>
+
+          <div class="form-row">
+            <div class="field">
+              <label class="uk-form-label" for="materialSelect">Material</label>
+              <select class="uk-select" id="materialSelect"></select>
+            </div>
+            <div class="field">
+              <label class="uk-form-label" for="amountInput">Amount</label>
+              <input class="uk-input" id="amountInput" type="number" min="1" max="64" value="1" />
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="uk-form-label" for="nameInput">Display name</label>
+            <input class="uk-input" id="nameInput" type="text" placeholder="Example: &aStart Run" />
+          </div>
+
+          <div class="field">
+            <label class="uk-form-label" for="loreInput">Lore lines</label>
+            <textarea class="uk-textarea" id="loreInput" rows="5" placeholder="One lore line per row"></textarea>
+          </div>
+
+          <div class="toggles">
+            <label class="toggle"><input id="glintInput" type="checkbox" /> <span>Enchantment glint</span></label>
+            <label class="toggle"><input id="unbreakableInput" type="checkbox" /> <span>Unbreakable</span></label>
+            <label class="toggle"><input id="hiddenAttributesInput" type="checkbox" /> <span>Hide attributes</span></label>
+            <label class="toggle"><input id="hiddenEnchantsInput" type="checkbox" /> <span>Hide enchantments</span></label>
+          </div>
+
+          <div class="form-row">
+            <div class="field">
+              <label class="uk-form-label" for="customModelDataInput">Custom model data</label>
+              <input class="uk-input" id="customModelDataInput" type="number" min="0" step="1" placeholder="Optional" />
+            </div>
+            <div class="field">
+              <label class="uk-form-label" for="durabilityInput">Durability</label>
+              <input class="uk-input" id="durabilityInput" type="number" min="0" step="1" placeholder="0" />
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="field">
+              <label class="uk-form-label" for="actionTypeInput">Click action</label>
+              <select class="uk-select" id="actionTypeInput">
+                <option value="none">none</option>
+                <option value="command">command</option>
+                <option value="open_url">open_url</option>
+                <option value="message">message</option>
+                <option value="toggle">toggle</option>
+                <option value="close">close</option>
+                <option value="change_page">change_page</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="uk-form-label" for="actionValueInput">Action value</label>
+              <input class="uk-input" id="actionValueInput" type="text" placeholder="Command, URL, page name, or message" />
+            </div>
+          </div>
+
+          <div class="actions">
+            <button id="applyBtn" class="uk-button uk-button-primary">Apply to slot</button>
+            <button id="duplicateBtn" class="uk-button uk-button-default">Duplicate item</button>
+            <button id="removeBtn" class="uk-button uk-button-danger">Remove from slot</button>
+          </div>
+        </section>
+
+        <section class="card section">
+          <div class="panel-head">
+            <div>
+              <h2>Export</h2>
+              <p>Plain JSON designed for AI interpretation and later generation.</p>
+            </div>
+          </div>
+          <textarea class="uk-textarea json" id="jsonOutput" spellcheck="false" readonly></textarea>
+          <div class="actions" style="margin-top: 12px;">
+            <button id="downloadBtn" class="uk-button uk-button-default">Download JSON</button>
+            <button id="loadSampleBtn" class="uk-button uk-button-default">Load sample</button>
+            <button id="focusGridBtn" class="uk-button uk-button-default">Select first slot</button>
+          </div>
+        </section>
+      </aside>
+    </main>
+  </div>
+
+  <template id="slotTemplate">
+    <button class="slot uk-button uk-button-default" type="button">
+      <span class="slot-index"></span>
+      <span class="slot-icon"></span>
+      <span class="slot-name"></span>
+    </button>
+  </template>
+
+  <script>
+    const MATERIALS = [
+      { id: 'AIR', emoji: '·', category: 'Utility' },
+      { id: 'BARRIER', emoji: '⛔', category: 'Utility' },
+      { id: 'CHEST', emoji: '📦', category: 'Container' },
+      { id: 'ENDER_CHEST', emoji: '🟣', category: 'Container' },
+      { id: 'BOOK', emoji: '📘', category: 'Info' },
+      { id: 'WRITABLE_BOOK', emoji: '✍', category: 'Info' },
+      { id: 'CLOCK', emoji: '⏰', category: 'Info' },
+      { id: 'COMPASS', emoji: '🧭', category: 'Info' },
+      { id: 'DIAMOND', emoji: '💎', category: 'Rare' },
+      { id: 'DIAMOND_SWORD', emoji: '🗡', category: 'Weapon' },
+      { id: 'NETHERITE_SWORD', emoji: '⚔', category: 'Weapon' },
+      { id: 'IRON_AXE', emoji: '🪓', category: 'Tool' },
+      { id: 'IRON_SHOVEL', emoji: '⛏', category: 'Tool' },
+      { id: 'BREAD', emoji: '🍞', category: 'Food' },
+      { id: 'GOLDEN_APPLE', emoji: '🍎', category: 'Food' },
+      { id: 'ENDER_PEARL', emoji: '🟢', category: 'Mobility' },
+      { id: 'ELYTRA', emoji: '🪁', category: 'Mobility' },
+      { id: 'OAK_BUTTON', emoji: '🔘', category: 'Redstone' },
+      { id: 'REDSTONE_BLOCK', emoji: '🟥', category: 'Redstone' },
+      { id: 'LIME_STAINED_GLASS', emoji: '🟩', category: 'Decor' },
+      { id: 'RED_STAINED_GLASS', emoji: '🟥', category: 'Decor' },
+      { id: 'BLACK_STAINED_GLASS_PANE', emoji: '⬛', category: 'Decor' },
+      { id: 'WHITE_STAINED_GLASS_PANE', emoji: '⬜', category: 'Decor' },
+      { id: 'PLAYER_HEAD', emoji: '🧑', category: 'Decor' },
+      { id: 'MAP', emoji: '🗺', category: 'Info' },
+      { id: 'FILLED_MAP', emoji: '📍', category: 'Info' },
+      { id: 'SPAWN_EGG', emoji: '🥚', category: 'Utility' },
+      { id: 'ENDER_EYE', emoji: '👁', category: 'Progress' },
+      { id: 'GLOWSTONE_DUST', emoji: '✨', category: 'Utility' },
+      { id: 'NETHER_STAR', emoji: '⭐', category: 'Reward' }
+    ];
+
+    const DEFAULT_STATE = {
+      gui: {
+        title: 'Training Menu',
+        size: 54,
+        version: '1.0',
+        author: 'GUI Maker',
+        description: 'A chest-style Minecraft GUI definition created in the browser.',
+        tags: ['minecraft', 'gui', 'menu']
+      },
+      slots: {}
+    };
+
+    const state = {
+      gui: structuredClone(DEFAULT_STATE.gui),
+      slots: {},
+      selectedSlot: null,
+      selectedMaterial: 'BARRIER'
+    };
+
+    const els = {
+      grid: document.getElementById('grid'),
+      palette: document.getElementById('palette'),
+      materialSearch: document.getElementById('materialSearch'),
+      materialSelect: document.getElementById('materialSelect'),
+      guiTitle: document.getElementById('guiTitle'),
+      guiSize: document.getElementById('guiSize'),
+      slotCounter: document.getElementById('slotCounter'),
+      selectedSlotBadge: document.getElementById('selectedSlotBadge'),
+      amountInput: document.getElementById('amountInput'),
+      nameInput: document.getElementById('nameInput'),
+      loreInput: document.getElementById('loreInput'),
+      glintInput: document.getElementById('glintInput'),
+      unbreakableInput: document.getElementById('unbreakableInput'),
+      hiddenAttributesInput: document.getElementById('hiddenAttributesInput'),
+      hiddenEnchantsInput: document.getElementById('hiddenEnchantsInput'),
+      customModelDataInput: document.getElementById('customModelDataInput'),
+      durabilityInput: document.getElementById('durabilityInput'),
+      actionTypeInput: document.getElementById('actionTypeInput'),
+      actionValueInput: document.getElementById('actionValueInput'),
+      jsonOutput: document.getElementById('jsonOutput'),
+      exportJsonBtn: document.getElementById('exportJsonBtn'),
+      copyJsonBtn: document.getElementById('copyJsonBtn'),
+      downloadBtn: document.getElementById('downloadBtn'),
+      clearBtn: document.getElementById('clearBtn'),
+      applyBtn: document.getElementById('applyBtn'),
+      duplicateBtn: document.getElementById('duplicateBtn'),
+      removeBtn: document.getElementById('removeBtn'),
+      loadSampleBtn: document.getElementById('loadSampleBtn'),
+      focusGridBtn: document.getElementById('focusGridBtn')
+    };
+
+    function materialMeta(id) {
+      return MATERIALS.find((item) => item.id === id) ?? MATERIALS[0];
+    }
+
+    function slotLabel(index) {
+      const row = Math.floor(index / 9) + 1;
+      const col = (index % 9) + 1;
+      return `R${row}C${col}`;
+    }
+
+    function blankSlot(index) {
+      return {
+        slot: index,
+        material: 'AIR',
+        amount: 1,
+        name: '',
+        lore: [],
+        enchantedGlint: false,
+        unbreakable: false,
+        hideAttributes: false,
+        hideEnchantments: false,
+        customModelData: null,
+        durability: null,
+        action: {
+          type: 'none',
+          value: ''
+        }
+      };
+    }
+
+    function ensureSlot(index) {
+      if (!state.slots[index]) {
+        state.slots[index] = blankSlot(index);
+      }
+      return state.slots[index];
+    }
+
+    function currentSize() {
+      return Number(els.guiSize.value);
+    }
+
+    function visibleMaterials() {
+      const query = els.materialSearch.value.trim().toLowerCase();
+      if (!query) return MATERIALS;
+      return MATERIALS.filter((item) => item.id.toLowerCase().includes(query) || item.category.toLowerCase().includes(query));
+    }
+
+    function buildMaterialSelect() {
+      els.materialSelect.innerHTML = MATERIALS
+        .map((item) => `<option value="${item.id}">${item.emoji} ${item.id}</option>`)
+        .join('');
+    }
+
+    function renderPalette() {
+      const items = visibleMaterials();
+      if (!items.length) {
+        els.palette.innerHTML = '<div class="helper">No materials match that search.</div>';
+        return;
+      }
+
+      els.palette.innerHTML = items
+        .map((item) => `
+          <button type="button" class="uk-button uk-button-default ${state.selectedMaterial === item.id ? 'active' : ''}" data-material="${item.id}">
+            <strong>${item.emoji} ${item.id}</strong>
+            <small>${item.category}</small>
+          </button>
+        `)
+        .join('');
+
+      els.palette.querySelectorAll('button').forEach((button) => {
+        button.addEventListener('click', () => {
+          state.selectedMaterial = button.dataset.material;
+          els.materialSelect.value = state.selectedMaterial;
+          renderPalette();
+        });
+      });
+    }
+
+    function renderGrid() {
+      const size = currentSize();
+      const used = Object.keys(state.slots)
+        .map(Number)
+        .filter((slot) => slot < size && state.slots[slot].material !== 'AIR').length;
+      els.slotCounter.textContent = `${used} / ${size} used`;
+
+      const fragment = document.createDocumentFragment();
+      const template = document.getElementById('slotTemplate');
+      els.grid.innerHTML = '';
+
+      for (let i = 0; i < size; i += 1) {
+        const slotData = state.slots[i] ?? blankSlot(i);
+        const meta = materialMeta(slotData.material);
+        const button = template.content.firstElementChild.cloneNode(true);
+        button.dataset.slot = String(i);
+        button.classList.toggle('empty', slotData.material === 'AIR');
+        button.classList.toggle('selected', state.selectedSlot === i);
+        button.querySelector('.slot-index').textContent = `${slotLabel(i)} • ${i}`;
+        button.querySelector('.slot-icon').textContent = meta.emoji;
+        button.querySelector('.slot-name').textContent = slotData.name || slotData.material;
+        button.title = `${slotLabel(i)}: ${slotData.material}`;
+        button.addEventListener('click', () => selectSlot(i));
+        fragment.appendChild(button);
+      }
+
+      els.grid.appendChild(fragment);
+    }
+
+    function renderEditor() {
+      const selected = state.selectedSlot == null ? null : ensureSlot(state.selectedSlot);
+      if (!selected) {
+        els.selectedSlotBadge.textContent = 'No slot selected';
+        return;
+      }
+
+      els.selectedSlotBadge.textContent = `Selected ${slotLabel(state.selectedSlot)} (${state.selectedSlot})`;
+      els.materialSelect.value = selected.material;
+      els.amountInput.value = selected.amount;
+      els.nameInput.value = selected.name;
+      els.loreInput.value = selected.lore.join('\n');
+      els.glintInput.checked = selected.enchantedGlint;
+      els.unbreakableInput.checked = selected.unbreakable;
+      els.hiddenAttributesInput.checked = selected.hideAttributes;
+      els.hiddenEnchantsInput.checked = selected.hideEnchantments;
+      els.customModelDataInput.value = selected.customModelData ?? '';
+      els.durabilityInput.value = selected.durability ?? '';
+      els.actionTypeInput.value = selected.action?.type ?? 'none';
+      els.actionValueInput.value = selected.action?.value ?? '';
+    }
+
+    function renderExport() {
+      els.jsonOutput.value = JSON.stringify(buildExportObject(), null, 2);
+    }
+
+    function buildExportObject() {
+      const slots = Object.values(state.slots)
+        .map((slot) => structuredClone(slot))
+        .filter((slot) => slot.material !== 'AIR')
+        .sort((left, right) => left.slot - right.slot);
+
+      return {
+        schema: 'deepcore.gui-metadata.v1',
+        ai_hint: 'Interpret this as a Minecraft chest GUI definition. Preserve slot order, item display properties, and click actions.',
+        gui: {
+          ...state.gui,
+          title: els.guiTitle.value.trim() || 'Untitled GUI',
+          size: currentSize()
+        },
+        slots
+      };
+    }
+
+    function syncGuiState() {
+      state.gui.title = els.guiTitle.value.trim() || 'Untitled GUI';
+      state.gui.size = currentSize();
+    }
+
+    function selectSlot(index) {
+      state.selectedSlot = index;
+      renderGrid();
+      renderEditor();
+    }
+
+    function clampInt(value, min, max, fallback) {
+      const parsed = Number.parseInt(value, 10);
+      if (Number.isNaN(parsed)) return fallback;
+      return Math.min(max, Math.max(min, parsed));
+    }
+
+    function toNullableInt(value) {
+      const trimmed = String(value).trim();
+      if (!trimmed.length) return null;
+      const parsed = Number.parseInt(trimmed, 10);
+      return Number.isNaN(parsed) ? null : parsed;
+    }
+
+    function applyEditorToSlot() {
+      if (state.selectedSlot == null) return;
+
+      const slotIndex = state.selectedSlot;
+      const material = els.materialSelect.value;
+      const amount = clampInt(els.amountInput.value, 1, 64, 1);
+      const lore = els.loreInput.value
+        .split(/\r?\n/)
+        .map((line) => line.trimEnd())
+        .filter((line) => line.length > 0);
+
+      state.slots[slotIndex] = {
+        slot: slotIndex,
+        material,
+        amount,
+        name: els.nameInput.value.trim(),
+        lore,
+        enchantedGlint: els.glintInput.checked,
+        unbreakable: els.unbreakableInput.checked,
+        hideAttributes: els.hiddenAttributesInput.checked,
+        hideEnchantments: els.hiddenEnchantsInput.checked,
+        customModelData: toNullableInt(els.customModelDataInput.value),
+        durability: toNullableInt(els.durabilityInput.value),
+        action: {
+          type: els.actionTypeInput.value,
+          value: els.actionValueInput.value.trim()
+        }
+      };
+
+      state.selectedMaterial = material;
+      syncGuiState();
+      renderPalette();
+      renderGrid();
+      renderExport();
+    }
+
+    function findNextEmptySlot(startIndex) {
+      const size = currentSize();
+      for (let i = startIndex; i < size; i += 1) {
+        if (!state.slots[i] || state.slots[i].material === 'AIR') {
+          return i;
+        }
+      }
+      return null;
+    }
+
+    function duplicateSlot() {
+      if (state.selectedSlot == null) return;
+      const source = ensureSlot(state.selectedSlot);
+      const target = findNextEmptySlot(state.selectedSlot + 1);
+      if (target == null) return;
+
+      state.slots[target] = structuredClone(source);
+      state.slots[target].slot = target;
+      selectSlot(target);
+      renderExport();
+    }
+
+    function removeSlot() {
+      if (state.selectedSlot == null) return;
+      delete state.slots[state.selectedSlot];
+      renderGrid();
+      renderExport();
+      renderEditor();
+    }
+
+    function pruneSlotsToSize() {
+      const size = currentSize();
+      Object.keys(state.slots).forEach((key) => {
+        if (Number(key) >= size) {
+          delete state.slots[key];
+        }
+      });
+      if (state.selectedSlot != null && state.selectedSlot >= size) {
+        state.selectedSlot = null;
+      }
+    }
+
+    function clearGrid() {
+      if (!window.confirm('Clear all placed items?')) return;
+      state.slots = {};
+      state.selectedSlot = null;
+      renderGrid();
+      renderEditor();
+      renderExport();
+    }
+
+    function loadSample() {
+      state.gui = {
+        title: 'Training Menu',
+        size: 54,
+        version: '1.0',
+        author: 'GUI Maker',
+        description: 'A chest-style Minecraft GUI definition created in the browser.',
+        tags: ['minecraft', 'gui', 'menu']
+      };
+      els.guiTitle.value = state.gui.title;
+      els.guiSize.value = String(state.gui.size);
+      state.slots = {
+        10: {
+          slot: 10,
+          material: 'NETHER_STAR',
+          amount: 1,
+          name: '&bStart Run',
+          lore: ['Begin the speedrun challenge'],
+          enchantedGlint: true,
+          unbreakable: false,
+          hideAttributes: true,
+          hideEnchantments: false,
+          customModelData: 1001,
+          durability: null,
+          action: { type: 'command', value: '/challenge start' }
+        },
+        13: {
+          slot: 13,
+          material: 'BOOK',
+          amount: 1,
+          name: '&fRules',
+          lore: ['Read before starting'],
+          enchantedGlint: false,
+          unbreakable: false,
+          hideAttributes: false,
+          hideEnchantments: false,
+          customModelData: null,
+          durability: null,
+          action: { type: 'message', value: 'Open the rules' }
+        },
+        16: {
+          slot: 16,
+          material: 'BARRIER',
+          amount: 1,
+          name: '&cClose',
+          lore: ['Exit the menu'],
+          enchantedGlint: false,
+          unbreakable: false,
+          hideAttributes: true,
+          hideEnchantments: true,
+          customModelData: null,
+          durability: null,
+          action: { type: 'close', value: '' }
+        }
+      };
+      state.selectedSlot = 10;
+      state.selectedMaterial = 'NETHER_STAR';
+      renderAll();
+    }
+
+    async function copyJson() {
+      const text = els.jsonOutput.value;
+      if (!text) return;
+      await navigator.clipboard.writeText(text);
+      els.copyJsonBtn.textContent = 'Copied';
+      window.setTimeout(() => {
+        els.copyJsonBtn.textContent = 'Copy JSON';
+      }, 1200);
+    }
+
+    function downloadJson() {
+      const blob = new Blob([els.jsonOutput.value], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = 'deepcore-gui.json';
+      anchor.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function renderAll() {
+      syncGuiState();
+      buildMaterialSelect();
+      renderPalette();
+      renderGrid();
+      renderEditor();
+      renderExport();
+    }
+
+    function wireEvents() {
+      els.materialSearch.addEventListener('input', renderPalette);
+      els.materialSelect.addEventListener('change', () => {
+        state.selectedMaterial = els.materialSelect.value;
+        renderPalette();
+      });
+
+      els.guiTitle.addEventListener('input', () => {
+        syncGuiState();
+        renderExport();
+      });
+
+      els.guiSize.addEventListener('change', () => {
+        syncGuiState();
+        pruneSlotsToSize();
+        renderAll();
+      });
+
+      [
+        els.amountInput,
+        els.nameInput,
+        els.loreInput,
+        els.glintInput,
+        els.unbreakableInput,
+        els.hiddenAttributesInput,
+        els.hiddenEnchantsInput,
+        els.customModelDataInput,
+        els.durabilityInput,
+        els.actionTypeInput,
+        els.actionValueInput
+      ].forEach((input) => {
+        input.addEventListener('change', () => {
+          if (state.selectedSlot != null) {
+            applyEditorToSlot();
+          } else {
+            renderExport();
+          }
+        });
+      });
+
+      els.exportJsonBtn.addEventListener('click', renderExport);
+      els.copyJsonBtn.addEventListener('click', () => {
+        copyJson().catch(() => {
+          els.copyJsonBtn.textContent = 'Copy failed';
+          window.setTimeout(() => {
+            els.copyJsonBtn.textContent = 'Copy JSON';
+          }, 1200);
+        });
+      });
+      els.downloadBtn.addEventListener('click', downloadJson);
+      els.clearBtn.addEventListener('click', clearGrid);
+      els.applyBtn.addEventListener('click', applyEditorToSlot);
+      els.duplicateBtn.addEventListener('click', duplicateSlot);
+      els.removeBtn.addEventListener('click', removeSlot);
+      els.loadSampleBtn.addEventListener('click', loadSample);
+      els.focusGridBtn.addEventListener('click', () => selectSlot(0));
+    }
+
+    buildMaterialSelect();
+    wireEvents();
+    renderAll();
+  </script>
+</body>
+</html>

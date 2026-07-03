@@ -1,37 +1,27 @@
-<img width="1156" height="430" alt="Capsule Art" src="https://github.com/user-attachments/assets/c338d277-2d2d-4b74-9a04-4c2dbd4b8f5b" />
-
-<p align="center">A plugin for collaborative speedruns with toggleable mechanics.</p>
-
 <p align="center">
-    <a href="https://github.com/StoryTime-Productions/DeepCore/graphs/contributors">
-        <img src="https://badgen.net/github/contributors/StoryTime-Productions/DeepCore?color=6f42c1" alt="Contributors">
-    </a>
-    <a href="https://github.com/StoryTime-Productions/DeepCore/network/members">
-        <img src="https://badgen.net/github/forks/StoryTime-Productions/DeepCore?color=2ea44f" alt="Forks">
-    </a>
-    <a href="https://github.com/StoryTime-Productions/DeepCore/stargazers">
-        <img src="https://badgen.net/github/stars/StoryTime-Productions/DeepCore?color=f59e0b" alt="Stargazers">
-    </a>
-    <a href="https://github.com/StoryTime-Productions/DeepCore/issues">
-        <img src="https://badgen.net/github/open-issues/StoryTime-Productions/DeepCore?color=d73a49" alt="Issues">
-    </a>
-    <a href="https://github.com/StoryTime-Productions/DeepCore/blob/main/LICENSE">
-        <img src="https://badgen.net/github/license/StoryTime-Productions/DeepCore?color=0ea5e9" alt="License">
-    </a>
-    <a href="https://codecov.io/gh/StoryTime-Productions/DeepCore">
-        <img src="https://codecov.io/gh/StoryTime-Productions/DeepCore/branch/main/graph/badge.svg?color=9333ea" alt="Coverage">
-    </a>
+  <img width="1156" height="430" alt="DeepCore banner" src="https://github.com/user-attachments/assets/c338d277-2d2d-4b74-9a04-4c2dbd4b8f5b" />
 </p>
 
-## What You Get
+<p align="center">
+  <a href="https://github.com/StoryTime-Productions/DeepCore/actions/workflows/ci.yml"><img src="https://github.com/StoryTime-Productions/DeepCore/actions/workflows/ci.yml/badge.svg" alt="CI status" /></a>
+  <img src="https://img.shields.io/badge/Paper-1.21.10-blue" alt="Paper 1.21.10" />
+  <img src="https://img.shields.io/badge/Java-21-orange" alt="Java 21" />
+</p>
+
+# DeepCore
+
+DeepCore is a Paper plugin for running collaborative Minecraft speedruns with toggleable mechanics. Players configure a shared or per-player rule set (keep inventory, hardcore, shared health, degrading inventory, and more) through an in-game prep GUI, then run the challenge in a generated world with results tracked in SQLite.
+
+## What It Does
 
 - Prep GUI for challenge setup before each run
 - Presets plus per-mechanic toggles
 - Shared and individual gameplay modifiers (health, inventory, hardcore, and more)
 - Run records storage via SQLite
 - World reset workflow between runs
+- Training gym with practice challenges (portal, craft, chest, bridge) for solo/team drilling
 
-## Prep Flow (Player Experience)
+### Prep Flow (Player Experience)
 
 1. Every online player receives the DeepCore prep book.
 2. Right-click the book to open the prep GUI.
@@ -40,7 +30,7 @@
 5. When everyone is ready, countdown starts and settings lock.
 6. Run begins in the generated challenge world.
 
-## Implemented Mechanic Toggles
+### Implemented Mechanic Toggles
 
 - keep_inventory
 - unlimited_deaths
@@ -51,38 +41,74 @@
 - initial_half_heart
 - degrading_inventory
 
-## Command Reference
+## Commands
 
-- /challenge status
-- /challenge list
-- /challenge enable
-- /challenge disable
-- /challenge mode <mode-key>
-- /challenge component list
-- /challenge component status
-- /challenge component reset
-- /challenge component <component-key> <on|off|toggle>
+| Command | Description | Permission |
+|---------|-------------|------------|
+| `/challenge status` | Show current challenge status | `deepcore.challenge` |
+| `/challenge list` | List available challenge modes | `deepcore.challenge` |
+| `/challenge enable` / `disable` | Enable or disable the challenge | `deepcore.challenge.admin` |
+| `/challenge mode <mode-key>` | Switch challenge mode | `deepcore.challenge.admin` |
+| `/challenge component list` / `status` | List or show mechanic toggle components | `deepcore.challenge` |
+| `/challenge component <component-key> <on\|off\|toggle>` | Toggle a mechanic component | `deepcore.challenge.admin` |
+| `/challenge reset` / `resetworld` | Reset overworld, nether, and end via limbo | `deepcore.challenge.reset` |
+| `/challenge end` | End the current run and return to prep | `deepcore.challenge.end` |
+| `/challenge pause` / `resume` | Pause or resume an active run | `deepcore.challenge.pause` |
+| `/challenge reload` | Reload DeepCore config from disk | `deepcore.challenge.reload` |
+| `/challenge logs` | Manage own DeepCore log preferences | `deepcore.challenge` |
+| `/challenge logs admin ...` | Manage other players' log preferences | `deepcore.challenge.logs.admin` |
+| `/challenge train` / `stop` | Enter or exit the training gym | `deepcore.challenge` |
+| `/lobby` | Return to the DeepCore lobby from the training gym | `deepcore.challenge` |
 
-## Quick Start (Developers)
+Full subcommand usage: `/challenge <status|train|list|enable|disable|mode|component|end|stop|pause|resume|reset|resetworld|lobby|reload|logs>`
 
-Prerequisites:
+## Requirements
 
+- Paper 1.21.10 (`api-version: "1.21"` in `plugin.yml`)
 - Java 21
-- Python 3 (for pre-commit)
+- `org.xerial:sqlite-jdbc` (used by `RunRecordsService` for run-records storage; shaded into the jar via the `com.gradleup.shadow` plugin, so no separate install is needed)
 
-Build and test:
+## Getting Started (Developers)
 
-    ./gradlew clean build
+### Prerequisites
 
-Output artifact:
+- Gradle (wrapper included, `gradlew`/`gradlew.bat`)
+- Java 21
+- Python 3 (for pre-commit hooks)
 
-- build/libs/DeepCore-<version>.jar
+### Build
 
-## Local Commit Enforcement
+```
+./gradlew clean build
+```
 
-This repository enforces quality checks when you attempt a commit.
+Output artifact: `build/libs/DeepCore-<version>.jar`
 
-Checks on commit attempt:
+### Install
+
+Drop the built jar into your server's `plugins/` folder and restart.
+
+## Configuration
+
+Key sections in `config.yml`:
+
+- `challenge` - enabled state, active mode, prep/countdown behavior, preview hologram settings, and the `components` map of mechanic toggles (keep_inventory, hardcore, health_refill, shared_inventory, shared_health, initial_half_heart, degrading_inventory) plus `degrading` interval/min-slots
+- `records` - SQLite database file name for run records
+- `prep` - countdown duration in seconds
+- `reset` - world names used for limbo/lobby/nether reset and disco-world chance
+- `logging` - console/chat log levels, prefix, and per-player log level overrides
+- `training` - training gym world, spawn points, craft challenge ranges, and per-challenge (portal/craft/chest/bridge) regions and start locations
+
+## CI/CD
+
+Workflows in `.github/workflows/`:
+
+- `ci.yml` - on PRs to `main`: runs tests with coverage gates (total line coverage >= 80%, changed-lines coverage >= 70% via diff-cover), uploads coverage to Codecov, and lints commit messages (commitlint, Angular-style conventional commits). On pushes to `main`: runs the full quality suite (format check via Spotless, typecheck/compile, Checkstyle lint, tests, coverage verification).
+- `static.yml` - on pushes to `main`: generates Javadoc and publishes it to the `gh-pages` branch.
+
+### Local Commit Enforcement
+
+This repository enforces the same quality checks locally via pre-commit hooks:
 
 - Formatting (Spotless)
 - Typecheck/compile (main + test sources)
@@ -91,13 +117,17 @@ Checks on commit attempt:
 
 Enable hooks once per clone:
 
-    pip install pre-commit
-    pre-commit install
-    pre-commit install --hook-type commit-msg
+```
+pip install pre-commit
+pre-commit install
+pre-commit install --hook-type commit-msg
+```
 
 Run hooks manually:
 
-    pre-commit run --all-files
+```
+pre-commit run --all-files
+```
 
 Conventional commit examples:
 
@@ -105,14 +135,10 @@ Conventional commit examples:
 - fix: handle countdown cancellation when all players leave
 - chore: update ci workflow gates
 
-## CI/CD Rules
+## Contributing
 
-PRs to main:
+See [.github/pull_request_template.md](.github/pull_request_template.md) and the issue templates in [.github/ISSUE_TEMPLATE](.github/ISSUE_TEMPLATE). Commits must follow Angular-style conventional commit format (enforced by commitlint in CI and locally via pre-commit).
 
-- Runs tests
-- Enforces total line coverage >= 80%
-- Enforces changed-lines coverage >= 70%
+## License
 
-Pushes to main:
-
-- Runs full quality suite (format check, typecheck, lint, tests, coverage verification)
+MIT - see [LICENSE](LICENSE).

@@ -1,0 +1,34 @@
+Completed-run info / configuration display — feature log
+
+==============================================================
+Feature:
+Show the enabled mechanics (challenge components) for each completed speedrun in the
+"Completed Runs" GUI page, so players can see exactly which modifiers were active
+during any past run.
+
+Implementation notes:
+- Added componentsCsv field to RunRecord (9th constructor param, mirrors participantsCsv).
+- getComponentKeys() parses the stored CSV into a List<String> of component keys.
+- RunRecordsService.recordRun() accepts List<String> enabledComponents as a new param.
+- DB schema updated: components TEXT NOT NULL DEFAULT '' column added to run_records.
+- Non-destructive migration: ALTER TABLE ADD COLUMN runs on initialize() if the column
+  is absent, so existing run history is preserved (old runs show "Standard (no modifiers)").
+- RunCompletionService receives a Supplier<List<ChallengeComponent>> at construction;
+  at dragon-kill time it resolves the list, maps to keys, and passes to recordRun().
+- ChallengeSessionManager supplies a lambda that filters challengeManager.getComponentToggles()
+  to only enabled entries.
+- PrepGuiRenderer.createRunRecordItem() appends a "Mechanics" lore section after split times:
+  each enabled component is listed as a green bullet using its display name.
+  Empty component list (standard run or pre-feature record) shows "Standard (no modifiers)".
+
+Status: implemented and tested.
+
+Files changed:
+- RunRecord.java
+- RunRecordsService.java
+- RunCompletionService.java
+- ChallengeSessionManager.java
+- PrepGuiRenderer.java
+- RunRecordTest.java
+- RunCompletionServiceTest.java
+- RunRecordsServiceTest.java

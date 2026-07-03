@@ -1,0 +1,161 @@
+TICKET: ONGOING-simple-voice-chat-challenge
+STATUS: Active — design phase, no implementation started
+
+==============================================================
+OVERVIEW
+
+A challenge mode where each participant is assigned a sensory restriction role.
+The three core roles are Blind, Mute, and Deaf. At least three players are
+required. Additional players each receive a randomly selected role from those
+three. All text chat is disabled for every participant while the mode is active,
+forcing all communication exclusively through Simple Voice Chat — which is then
+selectively restricted per role.
+
+Requires the Simple Voice Chat (henkelmax) plugin to be installed on the server.
+
+==============================================================
+ROLES
+
+  BLIND
+    - Continuous Darkness status effect (amplifier 1, refreshed every few ticks)
+    - No helmet slot impact; armor slot remains free
+    - Can still speak and hear via SVC
+    - Cannot read text chat (screen is blacked out by Darkness)
+
+  MUTE
+    - Cannot transmit voice: MicrophonePacketEvent is cancelled for this player
+    - Cannot send text chat: AsyncChatEvent is cancelled for this player
+    - Can hear others via SVC
+    - Can see the screen normally
+
+  DEAF
+    - Cannot receive voice: SoundPacketEvent is cancelled for this player
+    - Can transmit voice (others can hear them, they cannot hear back)
+    - Cannot send text chat: AsyncChatEvent is cancelled for this player
+    - Can see the screen normally
+
+  TEXT CHAT (ALL PLAYERS)
+    - AsyncChatEvent is cancelled for every participant while this mode is active
+    - Applies regardless of role — forces all communication through SVC only
+    - Players receive a feedback message on attempt: "Text chat is disabled in
+      this challenge mode."
+
+==============================================================
+ROLE ASSIGNMENT
+
+  - Minimum 3 players required to start; warn and block if fewer
+  - Shuffle participant list at run start using a seeded random (or ThreadLocalRandom)
+  - First player in shuffled list  → Blind
+  - Second player                  → Mute
+  - Third player                   → Deaf
+  - Fourth player and beyond       → randomly assigned one of {Blind, Mute, Deaf}
+    independently (duplicates of a role across players are allowed)
+  - Roles are fixed for the duration of the run
+  - Roles are announced privately to each player on assignment
+
+==============================================================
+SVC API INTEGRATION
+
+  Dependency (Gradle):
+    implementation "de.maxhenkel.voicechat:voicechat-api:2.x.x"
+    repository: https://maven.maxhenkel.de/repository/public
+
+  Detection at runtime:
+    BukkitVoicechatService svc =
+        getServer().getServicesManager().load(BukkitVoicechatService.class);
+    If null → SVC is not installed. Block mode activation and warn admins.
+
+  Mute enforcement (outgoing audio):
+    Listen to MicrophonePacketEvent (fired per audio packet from a player's mic).
+    If the source player has the Mute role → event.setCancelled(true).
+    This silences them to all other players without any client-side action.
+
+  Deaf enforcement (incoming audio):
+    Listen to SoundPacketEvent (fired before audio is delivered to a client).
+    If the receiving player has the Deaf role → event.setCancelled(true).
+    This drops the audio packet before it reaches the deaf player's client.
+
+  API limitation note:
+    SVC does not expose a server-side force-mute or force-deafen method.
+    The packet event cancellation approach above is the correct server-authoritative
+    path. This does not depend on any client mod behaviour — it is enforced
+    entirely on the server before packets leave.
+
+==============================================================
+REQUIREMENTS
+
+  R1. A new ChallengeComponent (SENSORY_CHALLENGE or similar) acts as the toggle.
+      When disabled, none of the role logic or chat suppression applies.
+
+  R2. A SensoryRoleService handles:
+      - Role assignment at run start
+      - Persistent role map (UUID → SensoryRole enum) for the run duration
+      - Role announcement to each player
+      - Darkness effect loop (scheduled repeating task) for Blind players
+      - Cleanup on run end (cancel tasks, clear role map, restore chat)
+
+  R3. A SVC listener class registers MicrophonePacketEvent and SoundPacketEvent.
+      Must soft-depend on SVC — if SVC is absent, this class is never registered
+      and the mode cannot activate (with a clear error message).
+
+  R4. AsyncChatEvent listener cancels outgoing messages from all participants
+      when SENSORY_CHALLENGE is active, regardless of role.
+
+  R5. Minimum player count guard: if fewer than 3 participants are registered,
+      the mode cannot start. Reuse or extend existing RunStartGuardService.
+
+  R6. Roles are revealed to each player individually (not broadcast to the group).
+      Other players do not know each other's roles.
+
+  R7. On run end (challenge complete, failure, or admin stop), all restrictions
+      are lifted: Darkness tasks cancelled, role map cleared, chat restored.
+
+==============================================================
+OPEN DESIGN QUESTIONS
+
+  Q1. Should roles be displayed on the sidebar/HUD, or kept strictly hidden?
+      Displaying to the role-holder (not others) would help orientation.
+
+  Q2. Should Blind players also have text chat blocked server-side, or is the
+      Darkness effect sufficient (they can't read it anyway)?
+      Lean: block it server-side for consistency with the no-communication intent.
+
+  Q3. What happens when a player dies and respawns? Roles should persist across
+      death — confirm this is the intended behaviour.
+
+  Q4. Should the Blind player's Darkness effect be visible to other players (i.e.
+      is the assignment public knowledge)? Current design: roles are private.
+
+  Q5. Minimum player count: is 3 a hard minimum, or can the mode run with 2
+      (assigning only two of the three roles)?
+
+==============================================================
+TASKS
+
+  [ ] T1. Add SensoryRole enum {BLIND, MUTE, DEAF}
+  [ ] T2. Add SENSORY_CHALLENGE to ChallengeComponent
+  [ ] T3. Implement SensoryRoleService
+          - assignRoles(List<Player> participants)
+          - getRoleForPlayer(UUID id) → Optional<SensoryRole>
+          - startBlindnessLoop(Player) / stopBlindnessLoop(Player)
+          - clearAll()
+  [ ] T4. Add SVC dependency to build.gradle (soft-depend, compileOnly)
+  [ ] T5. Implement SvcSensoryListener (MicrophonePacketEvent, SoundPacketEvent)
+          registered only when SVC is detected at startup
+  [ ] T6. Add AsyncChatEvent handler to block chat for all participants
+  [ ] T7. Wire role assignment into run-start lifecycle
+          (after participant list is finalised, before world teleport)
+  [ ] T8. Wire cleanup into run-end lifecycle
+  [ ] T9. Extend RunStartGuardService with minimum-player-count check for this mode
+  [ ] T10. Tests for SensoryRoleService (role distribution, minimum count guard,
+           cleanup behaviour)
+  [ ] T11. Update SpeedrunProgression.md to include this mode's placement in
+           the difficulty ladder (likely a separate axis from the existing tiers,
+           as it is co-op communication-based rather than resource-based)
+
+==============================================================
+CURRENT PROGRESS
+
+  - Design discussion complete
+  - SVC API capabilities confirmed (packet event cancellation is server-authoritative)
+  - Ticket written; no code written yet

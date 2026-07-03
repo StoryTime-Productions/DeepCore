@@ -1,0 +1,63 @@
+Shared inventory / armor bugs — resolved log
+
+==============================================================
+Problem:
+When a player equips armor, it removes that same slot from other players who have an armor piece already in that slot.
+
+Working note:
+We only need to remove the armor piece from the slot it was originally selected from in the other players' inventories. We do not need to search for the armor piece and remove it wherever it is.
+
+Attempt log:
+- Approach 1: remove by original slot index in other inventories.
+	- Status: not tried yet
+	- Expected result: preserve unrelated armor pieces and only clear the mirrored source slot.
+	- Result: pending
+- Approach 2: sync shared inventory immediately on each event, and only defer if a sync is already in progress.
+	- Status: worked
+	- Expected result: preserve pickup/order correctness under rapid inventory changes.
+	- Result: passed focused shared-inventory tests.
+- Approach 3: defer pickup and block-place sync by 1 tick so Bukkit finalizes the inventory mutation first.
+	- Status: worked
+	- Expected result: stop boats and picked-up items from being re-synced before the consume happens.
+	- Result: passed focused inventory-mechanics tests.
+
+Related finding:
+- Bed respawn behavior is not handled by shared inventory; the speedrun session respawn routing was overriding the vanilla respawn location.
+- The run-phase handler now preserves non-default respawn locations like beds and only redirects the default world-spawn respawn.
+
+Status: RESOLVED
+
+==============================================================
+Problem:
+When moving an item between slots (e.g. picking up dirt then placing it in another slot), other players'
+inventories lag by one event — the dirt disappears from others' view on the slot-move click, then reappears
+in the original slot on the next interaction.
+
+Root cause:
+InventoryClickEvent fires before Bukkit applies the slot mutation. The PlayerInventory branch was calling
+requestSharedInventorySync + flushPendingSharedInventorySync synchronously, so the pre-mutation state was
+broadcast. The external-inventory branch already correctly deferred to the next tick via runTask.
+
+Fix (InventoryMechanicsCoordinatorService.handleInventoryClick):
+Removed the split between PlayerInventory (immediate) and external inventory (deferred). Both now always
+defer to the next tick via runTask, so Bukkit completes the slot mutation before the sync reads inventory
+state. The flush call was removed as it was the mechanism forcing the pre-mutation read.
+
+Status: RESOLVED
+
+==============================================================
+Problem:
+When a player places a boat, the boat re-appears in their inventory a second later.
+
+Root cause:
+EntityPlaceEvent fires before Bukkit consumes the item from the player's hand, so syncing immediately
+broadcast the state with the boat still present. The fix deferred the sync by 1 tick (runTaskLater with 1L)
+so Bukkit removes the item from the hand before the sync reads inventory state.
+
+Status: RESOLVED
+
+==============================================================
+Problem:
+When a player attempts to set their spawnpoint on a boat, they do not get respawned at that spawnpoint.
+
+Status: open — no fix attempted yet.

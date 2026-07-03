@@ -27,3 +27,9 @@ __pycache__/
 .venv/
 venv/
 .pre-commit-cache/
+
+# Local test server (world saves, player data) - not source
+minecraft-test/
+
+# Generated world-gen output samples
+world-generator/outputs/
